@@ -23,17 +23,18 @@ Set up Teleport for the first time on this machine.
    - If `created` is true: inform user "Created private hub at <repoUrl>."
    - Store `username` from the result for later use.
 
-4. **Scan local environment**: Run `node "${CLAUDE_PLUGIN_ROOT}/dist/cli.js" scan --claude-dir ~/.claude --output /tmp/teleport-scan.json`.
+4. **Scan local environment**: Run `node "${CLAUDE_PLUGIN_ROOT}/dist/cli.js" scan --claude-dir ~/.claude --output /tmp/teleport-scan.json`. Parse the JSON output — it contains a `summary` object with counts per category.
 
-5. **Present summary**: Read `/tmp/teleport-scan.json`. Count items per category. Present:
+5. **Present summary**: Using the `summary` from the scan output, present:
    ```
    Found on this machine:
-   - Plugins: X
-   - Agents: Y
-   - Rules: Z
-   - Skills: W
-   - Hooks: V
-   - Settings keys: U
+   - Plugins: {summary.plugins}
+   - Agents: {summary.agents}
+   - Rules: {summary.rules}
+   - Skills: {summary.skills}
+   - Hooks: {summary.hooks}
+   - Settings keys: {summary.settings}
+   - MCP configs: {summary.mcp}
    ```
 
 6. **Category selection**: Ask "Which categories to export?" (multi-select). Then within selected: "Any specific items to exclude?"
