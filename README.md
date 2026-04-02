@@ -12,12 +12,12 @@ Teleport is a Claude Code plugin that syncs your entire environment — plugins,
 
 1. **Add the marketplace** in Claude Code:
    ```
-   /install-marketplace https://github.com/seil/teleport
+   /plugin marketplace add seilk/claude-teleport
    ```
 
 2. **Install the plugin**:
    ```
-   /install-plugin teleport
+   /plugin install claude-teleport
    ```
 
 3. **Initialize** on your first machine:
