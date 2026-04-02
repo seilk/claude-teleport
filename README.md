@@ -1,3 +1,7 @@
+<p align="center">
+  <img src="assets/banner.svg" alt="Teleport — Beam your Claude Code setup across machines" width="900"/>
+</p>
+
 # Teleport
 
 Beam your Claude Code setup across machines.
