@@ -1,10 +1,10 @@
 {
-  "name": "teleport",
+  "name": "claude-teleport",
   "description": "Teleport — beam your Claude Code setup across machines",
-  "owner": { "name": "seil" },
+  "owner": { "name": "seilk" },
   "plugins": [
     {
-      "name": "teleport",
+      "name": "claude-teleport",
       "description": "Sync Claude Code environment across machines",
       "source": "./"
     }

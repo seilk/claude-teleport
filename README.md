@@ -22,23 +22,23 @@ Teleport is a Claude Code plugin that syncs your entire environment — plugins,
 
 3. **Initialize** on your first machine:
    ```
-   /teleport-init
+   /claude-teleport:teleport-init
    ```
 
 4. **Pull** on another machine:
    ```
-   /teleport-pull
+   /claude-teleport:teleport-pull
    ```
 
 ## Commands
 
 | Command | Description |
 |---------|-------------|
-| `/teleport-init` | First-time setup: create private hub, export your config |
-| `/teleport-pull` | Pull configs from hub to this machine |
-| `/teleport-push` | Push local changes to hub |
-| `/teleport-share` | Publish safe configs for others to import |
-| `/teleport-from <user>` | Import from another user's public repo |
+| `/claude-teleport:teleport-init` | First-time setup: create private hub, export your config |
+| `/claude-teleport:teleport-pull` | Pull configs from hub to this machine |
+| `/claude-teleport:teleport-push` | Push local changes to hub |
+| `/claude-teleport:teleport-share` | Publish safe configs for others to import |
+| `/claude-teleport:teleport-from <user>` | Import from another user's public repo |
 
 ## How It Works
 
@@ -48,7 +48,7 @@ Teleport is a Claude Code plugin that syncs your entire environment — plugins,
                               branch: work-imac
                               branch: main (merged)
                                      |
-                                     v  /teleport-share
+                                     v  /claude-teleport:teleport-share
                              [claude-teleport-public]  <--from--  [Other Users]
                               branch: main (curated)
 ```
