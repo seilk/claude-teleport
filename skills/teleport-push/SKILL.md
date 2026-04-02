@@ -1,7 +1,7 @@
 ---
 name: teleport-push
 description: "Push local Claude Code changes to your hub"
-allowed-tools: [Bash, Read, Write]
+allowed-tools: [Bash, Read, Write, AskUserQuestion]
 ---
 
 # Teleport Push
@@ -18,7 +18,7 @@ Upload your local Claude Code changes to your private hub. Creates/updates a bra
 
 4. **Check empty**: If diff has no added/modified items: "Hub is up to date." STOP.
 
-5. **Present changes**: Show by category. User selects.
+5. **Present changes**: Show summary by category. Use `AskUserQuestion` with `multiSelect: true` to let the user select which categories to push. For categories with many items, use another `AskUserQuestion` with `multiSelect: true` for item-level selection.
 
 6. **Secret scan**: Run `secret-scan` on local snapshot. If findings: show, auto-exclude.
 

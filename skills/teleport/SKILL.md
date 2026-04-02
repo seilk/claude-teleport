@@ -1,7 +1,7 @@
 ---
 name: teleport
 description: "Beam your Claude Code setup across machines. Routes to the appropriate teleport command."
-allowed-tools: [Bash, Read, Write]
+allowed-tools: [Bash, Read, Write, AskUserQuestion]
 ---
 
 # Teleport
@@ -16,4 +16,11 @@ Sync your Claude Code environment (plugins, skills, agents, rules, hooks, settin
 - `/teleport-share` — Publish safe configs to a public repo for others
 - `/teleport-from <username>` — Import configs from another user's public repo
 
-Ask the user which command they'd like to run, then invoke the corresponding skill.
+Use `AskUserQuestion` (single-select) to ask which command to run. Options:
+- **teleport-init** — "First-time setup: create hub repo, scan and export environment"
+- **teleport-pull** — "Pull configs from your hub to this machine"
+- **teleport-push** — "Push local changes to your hub"
+- **teleport-share** — "Publish safe configs to a public repo for others"
+- **teleport-from** — "Import configs from another user's public repo"
+
+Then invoke the corresponding skill.
