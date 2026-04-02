@@ -14,6 +14,7 @@ export const CATEGORY_PATHS = {
     mcp: "mcp-configs",
     globalDocs: "",
 };
+export const VALID_CATEGORIES = Object.keys(CATEGORY_PATHS);
 export const GLOBAL_DOC_FILES = ["CLAUDE.md", "AGENTS.md"];
 export const DEFAULT_IGNORE_PATTERNS = [
     ".credentials.json",

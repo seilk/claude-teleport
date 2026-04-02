@@ -1,7 +1,7 @@
 import { execSync } from "node:child_process";
 import { existsSync, mkdirSync, writeFileSync, readFileSync, readdirSync } from "node:fs";
 import { join } from "node:path";
-import { platform } from "node:os";
+import { platform, tmpdir } from "node:os";
 import { PRIVATE_REPO_NAME, PUBLIC_REPO_NAME, TELEPORT_VERSION } from "./constants.js";
 import type { Snapshot, FileEntry } from "./types.js";
 
@@ -24,8 +24,13 @@ export interface MachineInfo {
   readonly lastPush: string;
 }
 
+const LOCAL_TIMEOUT = Number(process.env["TELEPORT_GIT_TIMEOUT"]) || 30_000;
+const REMOTE_TIMEOUT = Number(process.env["TELEPORT_GIT_REMOTE_TIMEOUT"]) || 120_000;
+
 function exec(cmd: string, cwd?: string): string {
-  return execSync(cmd, { encoding: "utf-8", cwd, timeout: 30000 }).trim();
+  const isRemote = /\b(push|pull|fetch|clone)\b/.test(cmd);
+  const timeout = isRemote ? REMOTE_TIMEOUT : LOCAL_TIMEOUT;
+  return execSync(cmd, { encoding: "utf-8", cwd, timeout }).trim();
 }
 
 export function checkGhAuth(): GhAuthStatus {
@@ -68,8 +73,17 @@ export function createHubRepo(username: string): HubInitResult {
   }
 
   const repoUrl = `https://github.com/${username}/${PRIVATE_REPO_NAME}`;
-  exec(`gh repo create ${username}/${PRIVATE_REPO_NAME} --private --confirm`);
-  return { created: true, repoUrl, localPath: "" };
+  exec(`gh repo create ${username}/${PRIVATE_REPO_NAME} --private`);
+
+  // Clone and create initial commit on main so hub-push can merge into it
+  const tmpDir = join(tmpdir(), `teleport-hub-${Date.now()}`);
+  exec(`git clone ${repoUrl}.git ${tmpDir}`);
+  writeFileSync(join(tmpDir, "README.md"), `# Claude Teleport Hub\n\nPrivate hub for syncing Claude Code configs across machines.\n`);
+  exec("git add -A", tmpDir);
+  exec('git commit -m "init: create hub repository"', tmpDir);
+  exec("git push -u origin main", tmpDir);
+
+  return { created: true, repoUrl, localPath: tmpDir };
 }
 
 export function cloneOrPullHub(username: string, localPath: string): void {
@@ -136,38 +150,86 @@ function writeConfigFiles(snapshot: Snapshot, repoPath: string): void {
   }
 }
 
+export interface PushResult {
+  readonly status: "ok" | "error";
+  readonly conflicts?: readonly string[];
+  readonly error?: string;
+}
+
 export function pushToMachineBranch(
   repoPath: string,
   machineAlias: string,
   snapshot: Snapshot,
-): void {
-  // Create or switch to machine branch
+): PushResult {
+  // Record original state for rollback
+  let originalHead: string;
+  let originalBranch: string;
   try {
-    exec(`git checkout ${machineAlias}`, repoPath);
+    originalHead = exec("git rev-parse HEAD", repoPath);
+    originalBranch = exec("git branch --show-current", repoPath) || "main";
   } catch {
-    exec(`git checkout -b ${machineAlias}`, repoPath);
+    // Empty repo — no HEAD yet
+    originalHead = "";
+    originalBranch = "main";
   }
 
-  // Write configs to repo root
-  writeSnapshotYaml(snapshot, repoPath);
-  writeConfigFiles(snapshot, repoPath);
-
-  // Commit and push machine branch
-  exec("git add -A", repoPath);
   try {
-    exec(`git commit -m "teleport: update ${machineAlias}"`, repoPath);
-  } catch {
-    // Nothing to commit
-  }
+    // Create or switch to machine branch
+    try {
+      exec(`git checkout ${machineAlias}`, repoPath);
+    } catch {
+      exec(`git checkout -b ${machineAlias}`, repoPath);
+    }
 
-  // Merge into main
-  exec("git checkout main", repoPath);
-  try {
-    exec(`git merge ${machineAlias} -X theirs --no-ff -m "merge ${machineAlias} into main"`, repoPath);
-  } catch {
-    // Merge conflict — force theirs strategy
+    // Write configs to repo root
+    writeSnapshotYaml(snapshot, repoPath);
+    writeConfigFiles(snapshot, repoPath);
+
+    // Commit and push machine branch
     exec("git add -A", repoPath);
-    exec(`git commit -m "merge ${machineAlias} into main (resolved)"`, repoPath);
+    try {
+      exec(`git commit -m "teleport: update ${machineAlias}"`, repoPath);
+    } catch {
+      // Nothing to commit
+    }
+
+    // Merge into main — first try without force strategy to detect conflicts
+    exec("git checkout main", repoPath);
+    let conflicts: string[] = [];
+    try {
+      exec(`git merge ${machineAlias} --no-ff -m "merge ${machineAlias} into main"`, repoPath);
+    } catch {
+      // Merge conflict detected — collect conflict file list
+      try {
+        const conflictOutput = exec("git diff --name-only --diff-filter=U", repoPath);
+        conflicts = conflictOutput.split("\n").filter(Boolean);
+      } catch {
+        conflicts = ["(unable to list conflicted files)"];
+      }
+      // Auto-resolve with theirs strategy
+      exec("git merge --abort", repoPath);
+      exec(`git merge ${machineAlias} -X theirs --no-ff -m "merge ${machineAlias} into main (auto-resolved)"`, repoPath);
+    }
+
+    return conflicts.length > 0
+      ? { status: "ok", conflicts }
+      : { status: "ok" };
+  } catch (err) {
+    // Rollback to original state
+    try {
+      exec("git merge --abort", repoPath);
+    } catch { /* no merge in progress */ }
+    try {
+      exec(`git checkout ${originalBranch}`, repoPath);
+      if (originalHead) {
+        exec(`git reset --hard ${originalHead}`, repoPath);
+      }
+    } catch { /* best effort rollback */ }
+
+    return {
+      status: "error",
+      error: err instanceof Error ? err.message : String(err),
+    };
   }
 }
 
@@ -244,7 +306,7 @@ export function createPublicRepo(username: string): string {
     exec(`gh repo view ${username}/${PUBLIC_REPO_NAME} --json url`);
     return `https://github.com/${username}/${PUBLIC_REPO_NAME}`;
   } catch {
-    exec(`gh repo create ${username}/${PUBLIC_REPO_NAME} --public --confirm`);
+    exec(`gh repo create ${username}/${PUBLIC_REPO_NAME} --public`);
     return `https://github.com/${username}/${PUBLIC_REPO_NAME}`;
   }
 }
