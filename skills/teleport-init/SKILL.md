@@ -21,18 +21,20 @@ Set up Teleport for the first time on this machine.
 3. **Create hub repo**: Run `node "${CLAUDE_PLUGIN_ROOT}/dist/cli.js" hub-init`. Parse result.
    - If `created` is false: inform user "Hub already exists at <repoUrl>. Using existing."
    - If `created` is true: inform user "Created private hub at <repoUrl>."
+   - Store `username` from the result for later use.
 
-4. **Scan local environment**: Run `node "${CLAUDE_PLUGIN_ROOT}/dist/cli.js" scan --claude-dir ~/.claude --output /tmp/teleport-scan.json`.
+4. **Scan local environment**: Run `node "${CLAUDE_PLUGIN_ROOT}/dist/cli.js" scan --claude-dir ~/.claude --output /tmp/teleport-scan.json`. Parse the JSON output — it contains a `summary` object with counts per category.
 
-5. **Present summary**: Read `/tmp/teleport-scan.json`. Count items per category. Present:
+5. **Present summary**: Using the `summary` from the scan output, present:
    ```
    Found on this machine:
-   - Plugins: X
-   - Agents: Y
-   - Rules: Z
-   - Skills: W
-   - Hooks: V
-   - Settings keys: U
+   - Plugins: {summary.plugins}
+   - Agents: {summary.agents}
+   - Rules: {summary.rules}
+   - Skills: {summary.skills}
+   - Hooks: {summary.hooks}
+   - Settings keys: {summary.settings}
+   - MCP configs: {summary.mcp}
    ```
 
 6. **Category selection**: Use `AskUserQuestion` with `multiSelect: true` to present categories (Plugins, Agents, Rules, Skills, Hooks, Settings — only show categories with items). Then for each selected category, use another `AskUserQuestion` with `multiSelect: true` listing the individual items, asking "Any items to exclude?"
@@ -41,7 +43,7 @@ Set up Teleport for the first time on this machine.
 
 8. **First-push review gate**: "This is the first push. Please review the files that will be committed:" Show the file list. Wait for user confirmation.
 
-9. **Push to hub**: Write selections to `/tmp/teleport-selections.json`. Run `node "${CLAUDE_PLUGIN_ROOT}/dist/cli.js" hub-push --hub-path <localPath> --machine <alias> --snapshot-file /tmp/teleport-scan.json --selections-file /tmp/teleport-selections.json`.
+9. **Push to hub**: Write selections to `/tmp/teleport-selections.json`. Run `node "${CLAUDE_PLUGIN_ROOT}/dist/cli.js" hub-push --hub-path <localPath> --machine <alias> --username <username> --snapshot-file /tmp/teleport-scan.json --selections-file /tmp/teleport-selections.json`. This writes configs under `machines/<alias>/` in the hub, generates `registry.yaml` on main, and creates an agent-friendly `README.md`.
 
 10. **Success**: Show "Your Claude Code setup has been teleported to <repoUrl>. Run `/teleport-pull` on other machines to apply."
 

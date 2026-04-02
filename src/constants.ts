@@ -22,6 +22,8 @@ export const CATEGORY_PATHS: Readonly<Record<string, string>> = {
   globalDocs: "",
 } as const;
 
+export const VALID_CATEGORIES = Object.keys(CATEGORY_PATHS) as readonly string[];
+
 export const GLOBAL_DOC_FILES = ["CLAUDE.md", "AGENTS.md"] as const;
 
 export const DEFAULT_IGNORE_PATTERNS = [

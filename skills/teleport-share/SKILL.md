@@ -24,7 +24,7 @@ Publish a curated, safe subset of your configs to `claude-teleport-public` repo.
 
 7. **Item-by-item confirmation**: Show first 10 lines of each file. "Include in public repo?"
 
-8. **Create/update public repo**: Check if `<username>/claude-teleport-public` exists. If not, create it. Clone to temp. Create a branch per source machine (or `shared` branch), push selected items. Merge into main.
+8. **Create/update public repo**: Check if `<username>/claude-teleport-public` exists. If not, create it. Clone to temp. Push selected items under `machines/<source-alias>/` (namespaced per machine). Generate `registry.yaml` and an agent-friendly `README.md` (with import instructions for `/teleport-from`). Merge into main.
 
 9. **Push**: Commit and push.
 

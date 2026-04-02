@@ -21,10 +21,18 @@ export declare function hubExists(username: string): {
     exists: boolean;
     repoUrl?: string;
 };
-export declare function createHubRepo(username: string): HubInitResult;
+export declare function createHubRepo(username: string, cloneTo?: string): HubInitResult;
 export declare function cloneOrPullHub(username: string, localPath: string): void;
 export declare function pushToHub(localPath: string, message: string): void;
-export declare function pushToMachineBranch(repoPath: string, machineAlias: string, snapshot: Snapshot): void;
+export interface PushResult {
+    readonly status: "ok" | "error";
+    readonly conflicts?: readonly string[];
+    readonly error?: string;
+}
+export declare function writeHubReadme(repoPath: string, username: string, isPublic?: boolean): void;
+export declare function pushToMachineBranch(repoPath: string, machineAlias: string, snapshot: Snapshot, username?: string): PushResult;
 export declare function listMachineBranches(repoPath: string): MachineInfo[];
 export declare function readFromBranch(repoPath: string, branchName: string): Snapshot | null;
+export declare function readMachineFromMain(repoPath: string, alias: string): Snapshot | null;
+export declare function migrateRootToNamespaced(repoPath: string): boolean;
 export declare function createPublicRepo(username: string): string;
