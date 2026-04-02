@@ -1,5 +1,5 @@
 import { execSync } from "node:child_process";
-import { existsSync, mkdirSync, writeFileSync, readFileSync, readdirSync } from "node:fs";
+import { existsSync, mkdirSync, writeFileSync, readFileSync, readdirSync, rmSync } from "node:fs";
 import { join, relative } from "node:path";
 import { platform } from "node:os";
 import { createHash } from "node:crypto";
@@ -535,13 +535,13 @@ export function migrateRootToNamespaced(repoPath: string): boolean {
   for (const dir of dirsToRemove) {
     const p = join(repoPath, dir);
     if (existsSync(p)) {
-      execSync(`rm -rf "${p}"`, { cwd: repoPath, timeout: 10000 });
+      rmSync(p, { recursive: true, force: true });
     }
   }
   for (const f of filesToRemove) {
     const p = join(repoPath, f);
     if (existsSync(p)) {
-      execSync(`rm -f "${p}"`, { cwd: repoPath, timeout: 10000 });
+      rmSync(p, { force: true });
     }
   }
 
