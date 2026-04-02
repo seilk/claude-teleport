@@ -87,7 +87,7 @@ export function createHubRepo(username: string, cloneTo?: string): HubInitResult
 
   // Use `gh repo clone` which respects the user's configured git protocol (SSH/HTTPS)
   const cloneDir = cloneTo ?? join(tmpdir(), `teleport-hub-${Date.now()}`);
-  exec(`gh repo clone ${username}/${PRIVATE_REPO_NAME} ${cloneDir}`);
+  exec(`gh repo clone ${username}/${PRIVATE_REPO_NAME} "${cloneDir}"`);
   writeFileSync(join(cloneDir, "README.md"), `# Claude Teleport Hub\n\nPrivate hub for syncing Claude Code configs across machines.\n`);
   exec("git add -A", cloneDir);
   exec('git commit -m "init: create hub repository"', cloneDir);
@@ -102,7 +102,7 @@ export function cloneOrPullHub(username: string, localPath: string): void {
     exec("git pull --rebase", localPath);
   } else {
     mkdirSync(localPath, { recursive: true });
-    exec(`gh repo clone ${username}/${PRIVATE_REPO_NAME} ${localPath}`);
+    exec(`gh repo clone ${username}/${PRIVATE_REPO_NAME} "${localPath}"`);
   }
 }
 
@@ -307,6 +307,7 @@ export function pushToMachineBranch(
     originalBranch = "main";
   }
 
+  let renamedToMain = false;
   try {
     // Create or switch to machine branch
     try {
@@ -342,6 +343,7 @@ export function pushToMachineBranch(
     if (!mainExists) {
       // No main branch yet — rename current machine branch to main
       exec("git branch -m main", repoPath);
+      renamedToMain = true;
     } else {
       exec("git checkout main", repoPath);
       try {
@@ -392,9 +394,16 @@ export function pushToMachineBranch(
       exec("git merge --abort", repoPath);
     } catch { /* no merge in progress */ }
     try {
-      exec(`git checkout ${originalBranch}`, repoPath);
-      if (originalHead) {
-        exec(`git reset --hard ${originalHead}`, repoPath);
+      if (renamedToMain) {
+        // Already on main after rename — no checkout needed
+        if (originalHead) {
+          exec(`git reset --hard ${originalHead}`, repoPath);
+        }
+      } else {
+        exec(`git checkout ${originalBranch}`, repoPath);
+        if (originalHead) {
+          exec(`git reset --hard ${originalHead}`, repoPath);
+        }
       }
     } catch { /* best effort rollback */ }
 
