@@ -41,7 +41,23 @@ async function main() {
             const outputPath = flags["output"];
             if (outputPath) {
                 writeFileSync(outputPath, JSON.stringify(snapshot, null, 2));
-                output({ status: "ok", path: outputPath });
+                output({
+                    status: "ok",
+                    path: outputPath,
+                    summary: {
+                        plugins: snapshot.plugins.length,
+                        marketplaces: snapshot.marketplaces.length,
+                        agents: snapshot.agents.length,
+                        rules: snapshot.rules.length,
+                        skills: snapshot.skills.length,
+                        commands: snapshot.commands.length,
+                        settings: Object.keys(snapshot.settings).length,
+                        globalDocs: snapshot.globalDocs.length,
+                        hooks: snapshot.hooks.length,
+                        mcp: snapshot.mcp.length,
+                        keybindings: snapshot.keybindings ? 1 : 0,
+                    },
+                });
             }
             else {
                 output(snapshot);
