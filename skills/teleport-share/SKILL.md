@@ -1,7 +1,7 @@
 ---
 name: teleport-share
 description: "Publish safe configs to a public repo for other users to import"
-allowed-tools: [Bash, Read, Write]
+allowed-tools: [Bash, Read, Write, AskUserQuestion]
 ---
 
 # Teleport Share
@@ -14,9 +14,9 @@ Publish a curated, safe subset of your configs to `claude-teleport-public` repo.
 
 2. **Gather items**: Run `hub-machines --hub-path <hubPath>` to list branches. For each machine branch, checkout and read configs. Build deduplicated union (latest-pushed wins on collision).
 
-3. **Present available**: Show by category.
+3. **Present available**: Use `AskUserQuestion` with `multiSelect: true` to present available categories. "Which categories to share publicly?"
 
-4. **User selects**: "Which categories to share publicly?" Then: "Which specific items?"
+4. **User selects items**: For each selected category, use `AskUserQuestion` with `multiSelect: true` listing specific items. "Which specific items?"
 
 5. **Double secret scan**: Run `secret-scan` on selected items. If findings: show and auto-exclude.
 
