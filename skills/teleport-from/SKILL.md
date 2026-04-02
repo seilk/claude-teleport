@@ -11,11 +11,11 @@ Import configurations from another user's public teleport repo.
 
 ## Steps
 
-1. **Clone public repo**: Clone `<username>/claude-teleport-public` to a temp directory.
+1. **Clone public repo**: Clone `<username>/claude-teleport-public` to a temp directory. The repo contains an agent-friendly `README.md` that describes the repository structure and import instructions.
 
-2. **List branches**: `git branch -r` to show available machines. Present: "Available machines from <username>: macbook-pro, work-imac". User picks a branch (or `main` for union).
+2. **List machines**: Read `registry.yaml` from the cloned repo to list available machines and their config counts. Present: "Available machines from <username>: macbook-pro (3 agents, 5 rules), work-imac (1 agent, 4 rules)". User picks a machine (or `main` for union).
 
-3. **Checkout and scan**: `git checkout <branch>`. Read the contents and present categories: "Available: X agents, Y rules, Z skills."
+3. **Read machine configs**: Read files from `machines/<selected-alias>/` in the repo. Present categories: "Available: X agents, Y rules, Z skills." File paths inside `machines/<alias>/` map directly to `~/.claude/` paths.
 
 4. **User selects**: "Which categories to import?" Then: "Which specific items?"
 

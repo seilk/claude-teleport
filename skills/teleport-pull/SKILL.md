@@ -12,9 +12,9 @@ Pull configurations from your private hub to this machine.
 
 1. **Hub-connect preamble**: Run `node "${CLAUDE_PLUGIN_ROOT}/dist/cli.js" context`. Verify auth. Store `username` and `machineAlias`. Clone or pull: `git clone https://github.com/<username>/claude-teleport-private /tmp/teleport-hub-<random>` (or `git pull` if already present). Store path as `hubPath`.
 
-2. **List machine branches**: Run `node "${CLAUDE_PLUGIN_ROOT}/dist/cli.js" hub-machines --hub-path <hubPath>`. This returns branches (each branch = one machine). Present: "Available machines: macbook-pro (pushed 2h ago), work-imac (pushed 3d ago)". User picks a branch, or `main` for the merged union of all machines.
+2. **List machines**: Run `node "${CLAUDE_PLUGIN_ROOT}/dist/cli.js" hub-machines --hub-path <hubPath>`. This reads `registry.yaml` from main (no branch checkout needed). Present: "Available machines: macbook-pro (pushed 2h ago), work-imac (pushed 3d ago)". User picks a machine, or can choose "main" for the merged union.
 
-3. **Read branch + diff**: Run `node "${CLAUDE_PLUGIN_ROOT}/dist/cli.js" hub-read-branch --hub-path <hubPath> --branch <selected> --output /tmp/hub-snap.json`. Then scan local: `scan --output /tmp/local.json`. Then `diff --source-file /tmp/hub-snap.json --target-file /tmp/local.json --output /tmp/diff.json`.
+3. **Read machine + diff**: If user picked a specific machine, run `node "${CLAUDE_PLUGIN_ROOT}/dist/cli.js" hub-read-branch --hub-path <hubPath> --branch <selected> --output /tmp/hub-snap.json` (returns full snapshot with content from `machines/<alias>/`). Alternatively, to read from main without branch checkout: `hub-read-main --hub-path <hubPath> --machine <alias> --output /tmp/hub-snap.json`. Then scan local: `scan --output /tmp/local.json`. Then `diff --source-file /tmp/hub-snap.json --target-file /tmp/local.json --output /tmp/diff.json`.
 
 4. **Present diff**: Read diff file. Show by category: "From macbook-pro: +5 agents, +12 rules, ~3 settings, +2 plugins".
 
