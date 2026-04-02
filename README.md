@@ -81,6 +81,14 @@ When pulling, you choose which machine's branch to pull from — or use `main` f
 - RCE patterns flagged in imported hooks/agents
 - All external imports require per-file content review
 
+## Updating
+
+To update to the latest version:
+
+```bash
+cd ~/.claude/plugins/claude-teleport && git pull origin main
+```
+
 ## Requirements
 
 - Node.js >= 18
