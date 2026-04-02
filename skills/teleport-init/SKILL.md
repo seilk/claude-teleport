@@ -1,7 +1,7 @@
 ---
 name: teleport-init
 description: "First-time setup: create private hub repo, scan and export your Claude Code environment"
-allowed-tools: [Bash, Read, Write]
+allowed-tools: [Bash, Read, Write, AskUserQuestion]
 argument-hint: "[machine-alias]"
 ---
 
@@ -35,7 +35,7 @@ Set up Teleport for the first time on this machine.
    - Settings keys: U
    ```
 
-6. **Category selection**: Ask "Which categories to export?" (multi-select). Then within selected: "Any specific items to exclude?"
+6. **Category selection**: Use `AskUserQuestion` with `multiSelect: true` to present categories (Plugins, Agents, Rules, Skills, Hooks, Settings — only show categories with items). Then for each selected category, use another `AskUserQuestion` with `multiSelect: true` listing the individual items, asking "Any items to exclude?"
 
 7. **Secret scan**: Run `node "${CLAUDE_PLUGIN_ROOT}/dist/cli.js" secret-scan --snapshot-file /tmp/teleport-scan.json --output /tmp/teleport-secrets.json`. Read findings. If any: show each finding with file and line. Confirm exclusion.
 
