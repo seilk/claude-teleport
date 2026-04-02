@@ -6,7 +6,7 @@ import { applyDiff } from "./applier.js";
 import { createBackup, listBackups } from "./backup.js";
 import { scanForSecrets, scanForRcePatterns } from "./secrets.js";
 import { getMachineId } from "./machine.js";
-import { checkGhAuth, cloneOrPullHub, createHubRepo, hubExists, listMachineBranches, pushToMachineBranch, readFromBranch } from "./git.js";
+import { checkGhAuth, cloneOrPullHub, createHubRepo, hubExists, listMachineBranches, pushToMachineBranch, readFromBranch, readMachineFromMain, migrateRootToNamespaced } from "./git.js";
 import { CLAUDE_DIR, VALID_CATEGORIES } from "./constants.js";
 function parseArgs(args) {
     const command = args[0] ?? "";
@@ -262,7 +262,7 @@ async function main() {
             else {
                 const cloneTo = flags["clone-to"];
                 const result = createHubRepo(auth.username, cloneTo || undefined);
-                output(result);
+                output({ ...result, username: auth.username });
             }
             break;
         }
@@ -270,6 +270,7 @@ async function main() {
             const hubPath = flags["hub-path"];
             const machine = flags["machine"];
             const snapshotFile = flags["snapshot-file"];
+            const username = flags["username"] ?? "";
             const missingFlags = [
                 ...(!hubPath ? ["--hub-path"] : []),
                 ...(!machine ? ["--machine"] : []),
@@ -282,9 +283,11 @@ async function main() {
             }
             const verbose = flags["verbose"] !== undefined;
             const snapshot = readJsonFile(snapshotFile);
+            // Migrate legacy layout if needed
+            migrateRootToNamespaced(hubPath);
             if (verbose)
                 stderr(`Pushing to hub for machine "${machine}"...`);
-            const pushResult = pushToMachineBranch(hubPath, machine, snapshot);
+            const pushResult = pushToMachineBranch(hubPath, machine, snapshot, username);
             if (verbose && pushResult.status === "ok") {
                 stderr(pushResult.conflicts
                     ? `Push complete with ${pushResult.conflicts.length} auto-resolved conflict(s).`
@@ -333,11 +336,30 @@ async function main() {
             }
             break;
         }
+        case "hub-read-main": {
+            const hubPath = flags["hub-path"];
+            const alias = flags["machine"];
+            if (!hubPath || !alias) {
+                output({ status: "error", error: "Missing --hub-path or --machine" });
+                process.exitCode = 1;
+                break;
+            }
+            const mainSnapshot = readMachineFromMain(hubPath, alias);
+            const outputPath = flags["output"];
+            if (outputPath && mainSnapshot) {
+                writeFileSync(outputPath, JSON.stringify(mainSnapshot, null, 2));
+                output({ status: "ok", path: outputPath });
+            }
+            else {
+                output(mainSnapshot ?? { status: "error", error: "Machine not found on main" });
+            }
+            break;
+        }
         default:
             output({ status: "error", error: `Unknown command: ${command}`, available: [
                     "context", "scan", "diff", "apply", "backup", "backup-list",
                     "backup-restore", "secret-scan", "rce-scan", "hub-init",
-                    "hub-push", "hub-machines", "hub-read-branch",
+                    "hub-push", "hub-machines", "hub-read-branch", "hub-read-main",
                 ] });
             process.exitCode = 1;
     }

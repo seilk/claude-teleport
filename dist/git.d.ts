@@ -29,7 +29,10 @@ export interface PushResult {
     readonly conflicts?: readonly string[];
     readonly error?: string;
 }
-export declare function pushToMachineBranch(repoPath: string, machineAlias: string, snapshot: Snapshot): PushResult;
+export declare function writeHubReadme(repoPath: string, username: string, isPublic?: boolean): void;
+export declare function pushToMachineBranch(repoPath: string, machineAlias: string, snapshot: Snapshot, username?: string): PushResult;
 export declare function listMachineBranches(repoPath: string): MachineInfo[];
 export declare function readFromBranch(repoPath: string, branchName: string): Snapshot | null;
+export declare function readMachineFromMain(repoPath: string, alias: string): Snapshot | null;
+export declare function migrateRootToNamespaced(repoPath: string): boolean;
 export declare function createPublicRepo(username: string): string;
