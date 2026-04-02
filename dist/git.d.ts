@@ -21,7 +21,7 @@ export declare function hubExists(username: string): {
     exists: boolean;
     repoUrl?: string;
 };
-export declare function createHubRepo(username: string): HubInitResult;
+export declare function createHubRepo(username: string, cloneTo?: string): HubInitResult;
 export declare function cloneOrPullHub(username: string, localPath: string): void;
 export declare function pushToHub(localPath: string, message: string): void;
 export interface PushResult {

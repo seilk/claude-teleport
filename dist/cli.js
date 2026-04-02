@@ -260,7 +260,8 @@ async function main() {
                 }
             }
             else {
-                const result = createHubRepo(auth.username);
+                const cloneTo = flags["clone-to"];
+                const result = createHubRepo(auth.username, cloneTo || undefined);
                 output(result);
             }
             break;

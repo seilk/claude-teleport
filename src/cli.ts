@@ -273,7 +273,8 @@ async function main(): Promise<void> {
           output({ created: false, repoUrl: check.repoUrl, localPath: "" });
         }
       } else {
-        const result = createHubRepo(auth.username);
+        const cloneTo = flags["clone-to"];
+        const result = createHubRepo(auth.username, cloneTo || undefined);
         output(result);
       }
       break;

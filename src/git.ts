@@ -24,6 +24,13 @@ export interface MachineInfo {
   readonly lastPush: string;
 }
 
+function sanitizeBranchName(name: string): string {
+  if (!/^[a-zA-Z0-9._\-/]+$/.test(name) || name.includes("..") || name.startsWith("-")) {
+    throw new Error(`Invalid branch name: ${name}`);
+  }
+  return name;
+}
+
 const LOCAL_TIMEOUT = Number(process.env["TELEPORT_GIT_TIMEOUT"]) || 30_000;
 const REMOTE_TIMEOUT = Number(process.env["TELEPORT_GIT_REMOTE_TIMEOUT"]) || 120_000;
 
@@ -66,7 +73,7 @@ export function hubExists(username: string): { exists: boolean; repoUrl?: string
   }
 }
 
-export function createHubRepo(username: string): HubInitResult {
+export function createHubRepo(username: string, cloneTo?: string): HubInitResult {
   const check = hubExists(username);
   if (check.exists) {
     return { created: false, repoUrl: check.repoUrl!, localPath: "" };
@@ -76,14 +83,14 @@ export function createHubRepo(username: string): HubInitResult {
   exec(`gh repo create ${username}/${PRIVATE_REPO_NAME} --private`);
 
   // Clone and create initial commit on main so hub-push can merge into it
-  const tmpDir = join(tmpdir(), `teleport-hub-${Date.now()}`);
-  exec(`git clone ${repoUrl}.git ${tmpDir}`);
-  writeFileSync(join(tmpDir, "README.md"), `# Claude Teleport Hub\n\nPrivate hub for syncing Claude Code configs across machines.\n`);
-  exec("git add -A", tmpDir);
-  exec('git commit -m "init: create hub repository"', tmpDir);
-  exec("git push -u origin main", tmpDir);
+  const cloneDir = cloneTo ?? join(tmpdir(), `teleport-hub-${Date.now()}`);
+  exec(`git clone ${repoUrl}.git ${cloneDir}`);
+  writeFileSync(join(cloneDir, "README.md"), `# Claude Teleport Hub\n\nPrivate hub for syncing Claude Code configs across machines.\n`);
+  exec("git add -A", cloneDir);
+  exec('git commit -m "init: create hub repository"', cloneDir);
+  exec("git push -u origin main", cloneDir);
 
-  return { created: true, repoUrl, localPath: tmpDir };
+  return { created: true, repoUrl, localPath: cloneDir };
 }
 
 export function cloneOrPullHub(username: string, localPath: string): void {
@@ -161,6 +168,8 @@ export function pushToMachineBranch(
   machineAlias: string,
   snapshot: Snapshot,
 ): PushResult {
+  sanitizeBranchName(machineAlias);
+
   // Record original state for rollback
   let originalHead: string;
   let originalBranch: string;
@@ -210,6 +219,10 @@ export function pushToMachineBranch(
       exec("git merge --abort", repoPath);
       exec(`git merge ${machineAlias} -X theirs --no-ff -m "merge ${machineAlias} into main (auto-resolved)"`, repoPath);
     }
+
+    // Push both branches to remote
+    exec("git push origin main", repoPath);
+    exec(`git push origin ${machineAlias}`, repoPath);
 
     return conflicts.length > 0
       ? { status: "ok", conflicts }
