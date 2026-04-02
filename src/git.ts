@@ -77,20 +77,23 @@ export function hubExists(username: string): { exists: boolean; repoUrl?: string
 export function createHubRepo(username: string, cloneTo?: string): HubInitResult {
   const check = hubExists(username);
   if (check.exists) {
-    return { created: false, repoUrl: check.repoUrl!, localPath: "" };
+    // Clone to a local path so the caller can use the hub immediately
+    const cloneDir = cloneTo ?? join(tmpdir(), `teleport-hub-${Date.now()}`);
+    cloneOrPullHub(username, cloneDir);
+    return { created: false, repoUrl: check.repoUrl!, localPath: cloneDir };
   }
 
-  const repoUrl = `https://github.com/${username}/${PRIVATE_REPO_NAME}`;
   exec(`gh repo create ${username}/${PRIVATE_REPO_NAME} --private`);
 
-  // Clone and create initial commit on main so hub-push can merge into it
+  // Use `gh repo clone` which respects the user's configured git protocol (SSH/HTTPS)
   const cloneDir = cloneTo ?? join(tmpdir(), `teleport-hub-${Date.now()}`);
-  exec(`git clone ${repoUrl}.git ${cloneDir}`);
+  exec(`gh repo clone ${username}/${PRIVATE_REPO_NAME} "${cloneDir}"`);
   writeFileSync(join(cloneDir, "README.md"), `# Claude Teleport Hub\n\nPrivate hub for syncing Claude Code configs across machines.\n`);
   exec("git add -A", cloneDir);
   exec('git commit -m "init: create hub repository"', cloneDir);
   exec("git push -u origin main", cloneDir);
 
+  const repoUrl = `https://github.com/${username}/${PRIVATE_REPO_NAME}`;
   return { created: true, repoUrl, localPath: cloneDir };
 }
 
@@ -99,7 +102,7 @@ export function cloneOrPullHub(username: string, localPath: string): void {
     exec("git pull --rebase", localPath);
   } else {
     mkdirSync(localPath, { recursive: true });
-    exec(`git clone https://github.com/${username}/${PRIVATE_REPO_NAME}.git ${localPath}`);
+    exec(`gh repo clone ${username}/${PRIVATE_REPO_NAME} "${localPath}"`);
   }
 }
 
@@ -304,6 +307,7 @@ export function pushToMachineBranch(
     originalBranch = "main";
   }
 
+  let renamedToMain = false;
   try {
     // Create or switch to machine branch
     try {
@@ -327,22 +331,35 @@ export function pushToMachineBranch(
       // Nothing to commit
     }
 
-    // Merge into main — first try without force strategy to detect conflicts
-    exec("git checkout main", repoPath);
-    let conflicts: string[] = [];
+    // Merge into main — check if main exists first (empty repos won't have it)
+    let mainExists = true;
     try {
-      exec(`git merge ${machineAlias} --no-ff -m "merge ${machineAlias} into main"`, repoPath);
+      exec("git rev-parse --verify main", repoPath);
     } catch {
-      // Merge conflict detected — collect conflict file list
+      mainExists = false;
+    }
+
+    let conflicts: string[] = [];
+    if (!mainExists) {
+      // No main branch yet — rename current machine branch to main
+      exec("git branch -m main", repoPath);
+      renamedToMain = true;
+    } else {
+      exec("git checkout main", repoPath);
       try {
-        const conflictOutput = exec("git diff --name-only --diff-filter=U", repoPath);
-        conflicts = conflictOutput.split("\n").filter(Boolean);
+        exec(`git merge ${machineAlias} --no-ff -m "merge ${machineAlias} into main"`, repoPath);
       } catch {
-        conflicts = ["(unable to list conflicted files)"];
+        // Merge conflict detected — collect conflict file list
+        try {
+          const conflictOutput = exec("git diff --name-only --diff-filter=U", repoPath);
+          conflicts = conflictOutput.split("\n").filter(Boolean);
+        } catch {
+          conflicts = ["(unable to list conflicted files)"];
+        }
+        // Auto-resolve with theirs strategy
+        exec("git merge --abort", repoPath);
+        exec(`git merge ${machineAlias} -X theirs --no-ff -m "merge ${machineAlias} into main (auto-resolved)"`, repoPath);
       }
-      // Auto-resolve with theirs strategy
-      exec("git merge --abort", repoPath);
-      exec(`git merge ${machineAlias} -X theirs --no-ff -m "merge ${machineAlias} into main (auto-resolved)"`, repoPath);
     }
 
     // Update registry and readme on main
@@ -357,9 +374,16 @@ export function pushToMachineBranch(
       // Nothing changed
     }
 
-    // Push both branches to remote
+    // Push main, and machine branch if it exists separately
     exec("git push origin main", repoPath);
-    exec(`git push origin ${machineAlias}`, repoPath);
+    if (mainExists) {
+      // Machine branch exists as a separate branch — push it too
+      exec(`git push origin ${machineAlias}`, repoPath);
+    } else {
+      // main was created by renaming the machine branch — recreate machine branch from main
+      exec(`git branch ${machineAlias}`, repoPath);
+      exec(`git push origin ${machineAlias}`, repoPath);
+    }
 
     return conflicts.length > 0
       ? { status: "ok", conflicts }
@@ -370,9 +394,16 @@ export function pushToMachineBranch(
       exec("git merge --abort", repoPath);
     } catch { /* no merge in progress */ }
     try {
-      exec(`git checkout ${originalBranch}`, repoPath);
-      if (originalHead) {
-        exec(`git reset --hard ${originalHead}`, repoPath);
+      if (renamedToMain) {
+        // Already on main after rename — no checkout needed
+        if (originalHead) {
+          exec(`git reset --hard ${originalHead}`, repoPath);
+        }
+      } else {
+        exec(`git checkout ${originalBranch}`, repoPath);
+        if (originalHead) {
+          exec(`git reset --hard ${originalHead}`, repoPath);
+        }
       }
     } catch { /* best effort rollback */ }
 
