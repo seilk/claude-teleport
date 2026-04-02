@@ -1,0 +1,6 @@
+# Hub repo .gitignore
+.DS_Store
+Thumbs.db
+*.local.json
+.env*
+node_modules/

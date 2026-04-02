@@ -1,0 +1,32 @@
+# Teleport Ignore — files/patterns excluded from sync
+# Secrets and credentials
+.credentials.json
+settings.local.json
+*.local.json
+.env*
+
+# Runtime state (never sync)
+session-env/
+sessions/
+debug/
+telemetry/
+history.jsonl
+paste-cache/
+file-history/
+transcripts/
+todos/
+costs/
+downloads/
+backups/
+shell-snapshots/
+projects/
+tasks/
+plans/
+
+# Plugin caches (reinstalled via plugin system)
+plugins/cache/
+plugins/marketplaces/
+
+# OS files
+.DS_Store
+Thumbs.db

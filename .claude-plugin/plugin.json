@@ -1,0 +1,9 @@
+{
+  "name": "teleport",
+  "description": "Beam your Claude Code setup across machines — sync plugins, skills, agents, rules, hooks, and settings",
+  "version": "0.1.0",
+  "author": { "name": "seil" },
+  "repository": "https://github.com/seil/teleport",
+  "license": "MIT",
+  "keywords": ["sync", "config", "machines", "backup", "teleport", "migration"]
+}
