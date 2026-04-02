@@ -5,6 +5,7 @@ export declare const TELEPORT_BACKUPS_DIR: string;
 export declare const PRIVATE_REPO_NAME = "claude-teleport-private";
 export declare const PUBLIC_REPO_NAME = "claude-teleport-public";
 export declare const CATEGORY_PATHS: Readonly<Record<string, string>>;
+export declare const VALID_CATEGORIES: readonly string[];
 export declare const GLOBAL_DOC_FILES: readonly ["CLAUDE.md", "AGENTS.md"];
 export declare const DEFAULT_IGNORE_PATTERNS: readonly [".credentials.json", "settings.local.json", "*.local.json", ".env*", "**/secrets/**", "session-env/", "sessions/", "debug/", "telemetry/", "history.jsonl", "paste-cache/", "file-history/", "transcripts/", "todos/", "costs/", "downloads/", "backups/", "shell-snapshots/"];
 export declare const SECRET_PATTERNS: ReadonlyArray<{
