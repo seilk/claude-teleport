@@ -143,22 +143,22 @@
   </g>
 
   <!-- ===== TEXT GLOW ===== -->
-  <ellipse cx="450" cy="42" rx="210" ry="42" fill="url(#tg)" class="gl" shape-rendering="auto"/>
+  <ellipse cx="450" cy="62" rx="210" ry="42" fill="url(#tg)" class="gl" shape-rendering="auto"/>
 
   <!-- ===== TITLE "TELEPORT" ===== -->
   <g fill="#f0a882">
-    <use href="#T" x="262" y="14"/>
-    <use href="#E" x="310" y="14"/>
-    <use href="#L" x="358" y="14"/>
-    <use href="#E" x="406" y="14"/>
-    <use href="#P" x="454" y="14"/>
-    <use href="#O" x="502" y="14"/>
-    <use href="#R" x="550" y="14"/>
-    <use href="#T" x="598" y="14"/>
+    <use href="#T" x="262" y="34"/>
+    <use href="#E" x="310" y="34"/>
+    <use href="#L" x="358" y="34"/>
+    <use href="#E" x="406" y="34"/>
+    <use href="#P" x="454" y="34"/>
+    <use href="#O" x="502" y="34"/>
+    <use href="#R" x="550" y="34"/>
+    <use href="#T" x="598" y="34"/>
   </g>
 
   <!-- ===== TAGLINE ===== -->
-  <text x="450" y="86" text-anchor="middle" font-family="'Courier New',monospace" font-size="10" font-weight="400" letter-spacing="2.5" fill="#d97757" opacity="0.55" shape-rendering="auto">BEAM YOUR CLAUDE CODE SETUP ACROSS MACHINES</text>
+  <text x="450" y="106" text-anchor="middle" font-family="'Courier New',monospace" font-size="10" font-weight="400" letter-spacing="2.5" fill="#d97757" opacity="0.55" shape-rendering="auto">BEAM YOUR CLAUDE CODE SETUP ACROSS MACHINES</text>
 
   <!-- ===== LEFT PORTAL (Desktop) ===== -->
   <g transform="translate(165,175)">
