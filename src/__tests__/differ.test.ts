@@ -236,5 +236,61 @@ describe("diff", () => {
       assert.equal(result.summary.removed.skills, 1);
       assert.equal(result.summary.hasChanges, true);
     });
+
+    it("counts settings changes in summary", () => {
+      const source = makeSnapshot({
+        settings: { theme: "dark", newKey: "value" },
+      });
+      const target = makeSnapshot({
+        settings: { theme: "light", removedKey: "old" },
+      });
+      const result = diff(source, target);
+      assert.equal(result.summary.added.settings, 1);    // newKey
+      assert.equal(result.summary.modified.settings, 1);  // theme
+      assert.equal(result.summary.removed.settings, 1);   // removedKey
+      assert.equal(result.summary.hasChanges, true);
+    });
+
+    it("counts plugins changes in summary", () => {
+      const source = makeSnapshot({
+        plugins: [
+          { name: "kept", marketplace: "official", version: "2.0.0" },
+          { name: "new-plugin", marketplace: "official" },
+        ],
+      });
+      const target = makeSnapshot({
+        plugins: [
+          { name: "kept", marketplace: "official", version: "1.0.0" },
+          { name: "old-plugin", marketplace: "official" },
+        ],
+      });
+      const result = diff(source, target);
+      assert.equal(result.summary.added.plugins, 1);     // new-plugin
+      assert.equal(result.summary.modified.plugins, 1);   // kept (version change)
+      assert.equal(result.summary.removed.plugins, 1);    // old-plugin
+      assert.equal(result.summary.hasChanges, true);
+    });
+
+    it("counts keybindings changes in summary", () => {
+      const source = makeSnapshot({
+        keybindings: { relativePath: "keybindings.json", contentHash: "new-hash", content: "[{\"key\":\"ctrl+s\"}]" },
+      } as Partial<Snapshot>);
+      const target = makeSnapshot({
+        keybindings: { relativePath: "keybindings.json", contentHash: "old-hash", content: "[{\"key\":\"ctrl+d\"}]" },
+      } as Partial<Snapshot>);
+      const result = diff(source, target);
+      assert.equal(result.summary.modified.keybindings, 1);
+      assert.equal(result.summary.hasChanges, true);
+    });
+
+    it("counts added keybindings in summary", () => {
+      const source = makeSnapshot({
+        keybindings: { relativePath: "keybindings.json", contentHash: "abc", content: "[]" },
+      } as Partial<Snapshot>);
+      const target = makeSnapshot();
+      const result = diff(source, target);
+      assert.equal(result.summary.added.keybindings, 1);
+      assert.equal(result.summary.hasChanges, true);
+    });
   });
 });

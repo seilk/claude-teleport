@@ -7,7 +7,7 @@
   "scripts": {
     "build": "tsc",
     "test": "node --import tsx --test src/__tests__/**/*.test.ts",
-    "prepare": "test -d node_modules/@types/node && npm run build || true"
+    "prepare": "test -d node_modules/@types/node && npm run build || test ! -d node_modules/@types/node"
   },
   "devDependencies": {
     "typescript": "^5.5.0",
