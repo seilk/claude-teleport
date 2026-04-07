@@ -101,6 +101,9 @@ export function cloneOrPullHub(username: string, localPath: string): void {
   if (existsSync(join(localPath, ".git"))) {
     exec("git pull --rebase", localPath);
   } else {
+    if (existsSync(localPath)) {
+      rmSync(localPath, { recursive: true, force: true });
+    }
     mkdirSync(localPath, { recursive: true });
     exec(`gh repo clone ${username}/${PRIVATE_REPO_NAME} "${localPath}"`);
   }

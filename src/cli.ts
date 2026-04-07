@@ -1,6 +1,8 @@
 #!/usr/bin/env node
 
 import { readFileSync, writeFileSync } from "node:fs";
+import { join } from "node:path";
+import { tmpdir } from "node:os";
 import { scanClaudeDir } from "./scanner.js";
 import { diff } from "./differ.js";
 import { applyDiff } from "./applier.js";
@@ -263,18 +265,12 @@ async function main(): Promise<void> {
         break;
       }
       const check = hubExists(auth.username);
+      const cloneTo = flags["clone-to"] || join(tmpdir(), "claude-teleport-hub");
       if (check.exists) {
-        // Clone existing repo so localPath is usable
-        const cloneTo = flags["clone-to"];
-        if (cloneTo) {
-          cloneOrPullHub(auth.username, cloneTo);
-          output({ created: false, repoUrl: check.repoUrl, localPath: cloneTo });
-        } else {
-          output({ created: false, repoUrl: check.repoUrl, localPath: "" });
-        }
+        cloneOrPullHub(auth.username, cloneTo);
+        output({ created: false, repoUrl: check.repoUrl, localPath: cloneTo, username: auth.username });
       } else {
-        const cloneTo = flags["clone-to"];
-        const result = createHubRepo(auth.username, cloneTo || undefined);
+        const result = createHubRepo(auth.username, cloneTo);
         output({ ...result, username: auth.username });
       }
       break;
