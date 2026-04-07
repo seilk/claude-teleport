@@ -1,6 +1,5 @@
 import { readdirSync, readFileSync, existsSync, statSync } from "node:fs";
-import { join, relative } from "node:path";
-import { createHash } from "node:crypto";
+import { join } from "node:path";
 import {
   TELEPORT_VERSION,
   CATEGORY_PATHS,
@@ -9,49 +8,7 @@ import {
 } from "./constants.js";
 import { getMachineId } from "./machine.js";
 import type { Snapshot, FileEntry, PluginEntry, Marketplace, HookEntry } from "./types.js";
-
-function hashContent(content: string): string {
-  return createHash("sha256").update(content).digest("hex");
-}
-
-function isTextFile(filePath: string): boolean {
-  try {
-    const buf = readFileSync(filePath);
-    // Check for null bytes as a simple binary detection
-    for (let i = 0; i < Math.min(buf.length, 8000); i++) {
-      if (buf[i] === 0) return false;
-    }
-    return true;
-  } catch {
-    return false;
-  }
-}
-
-function scanDirectory(baseDir: string, dirPath: string, category: string): FileEntry[] {
-  const fullPath = join(baseDir, dirPath);
-  if (!existsSync(fullPath)) return [];
-
-  const entries: FileEntry[] = [];
-
-  function walk(dir: string): void {
-    for (const item of readdirSync(dir, { withFileTypes: true })) {
-      const itemPath = join(dir, item.name);
-      if (item.isDirectory()) {
-        walk(itemPath);
-      } else if (item.isFile() && isTextFile(itemPath)) {
-        const content = readFileSync(itemPath, "utf-8");
-        entries.push({
-          relativePath: join(category, relative(fullPath, itemPath)),
-          contentHash: hashContent(content),
-          content,
-        });
-      }
-    }
-  }
-
-  walk(fullPath);
-  return entries;
-}
+import { hashContent, scanDirectoryToFileEntries } from "./utils.js";
 
 function scanSettings(baseDir: string): Record<string, unknown> {
   const settingsPath = join(baseDir, "settings.json");
@@ -126,6 +83,8 @@ function scanPlugins(baseDir: string): PluginEntry[] {
       }));
     }
 
+    // Unknown format — warn so future format changes don't silently break
+    console.warn(`[teleport] Unknown plugin format in ${filePath}, skipping`);
     return [];
   } catch {
     return [];
@@ -166,6 +125,8 @@ function scanMarketplaces(baseDir: string): Marketplace[] {
             source: { source: "github", repo: repoUrl },
           });
         }
+      } else {
+        console.warn(`[teleport] Unknown marketplace format in ${filePath}, skipping`);
       }
     } catch { /* skip */ }
   }
@@ -214,8 +175,11 @@ function scanGlobalDocs(baseDir: string): FileEntry[] {
 }
 
 function scanHooks(baseDir: string): HookEntry[] {
-  // Check .cursor/hooks.json pattern
-  const hooksJsonPath = join(baseDir, ".cursor", "hooks.json");
+  // Check hooks.json in claude dir, with .cursor/hooks.json as fallback
+  let hooksJsonPath = join(baseDir, "hooks.json");
+  if (!existsSync(hooksJsonPath)) {
+    hooksJsonPath = join(baseDir, ".cursor", "hooks.json");
+  }
   if (!existsSync(hooksJsonPath)) return [];
   try {
     const data = JSON.parse(readFileSync(hooksJsonPath, "utf-8"));
@@ -251,14 +215,14 @@ export async function scanClaudeDir(claudeDir: string): Promise<Snapshot> {
     machineAlias: machine.alias,
     plugins: scanPlugins(claudeDir),
     marketplaces: scanMarketplaces(claudeDir),
-    agents: scanDirectory(claudeDir, CATEGORY_PATHS.agents, "agents"),
-    rules: scanDirectory(claudeDir, CATEGORY_PATHS.rules, "rules"),
-    skills: scanDirectory(claudeDir, CATEGORY_PATHS.skills, "skills"),
-    commands: scanDirectory(claudeDir, CATEGORY_PATHS.commands, "commands"),
+    agents: scanDirectoryToFileEntries(claudeDir, CATEGORY_PATHS.agents, "agents"),
+    rules: scanDirectoryToFileEntries(claudeDir, CATEGORY_PATHS.rules, "rules"),
+    skills: scanDirectoryToFileEntries(claudeDir, CATEGORY_PATHS.skills, "skills"),
+    commands: scanDirectoryToFileEntries(claudeDir, CATEGORY_PATHS.commands, "commands"),
     settings: scanSettings(claudeDir),
     globalDocs: scanGlobalDocs(claudeDir),
     hooks: scanHooks(claudeDir),
-    mcp: scanDirectory(claudeDir, CATEGORY_PATHS.mcp, "mcp"),
+    mcp: scanDirectoryToFileEntries(claudeDir, CATEGORY_PATHS.mcp, "mcp"),
     keybindings: scanKeybindings(claudeDir),
   };
 }

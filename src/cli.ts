@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 
-import { readFileSync, writeFileSync } from "node:fs";
+import { readFileSync, writeFileSync, existsSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { scanClaudeDir } from "./scanner.js";
@@ -211,8 +211,33 @@ async function main(): Promise<void> {
         process.exitCode = 1;
         break;
       }
-      // Restore is the inverse of backup — copy backup contents to claude dir
-      output({ status: "ok", message: `Restored from ${timestamp}` });
+      const claudeDir = flags["claude-dir"] ?? CLAUDE_DIR;
+      const backupPath = join(claudeDir, "teleport-backups", timestamp);
+      if (!existsSync(backupPath)) {
+        output({ status: "error", error: `Backup not found: ${timestamp}` });
+        process.exitCode = 1;
+        break;
+      }
+      // Create a safety backup before restoring
+      const safetyBackup = await createBackup(claudeDir);
+      stderr(`Safety backup created: ${safetyBackup.timestamp}`);
+      // Copy backup contents back to claude dir
+      const { cpSync } = await import("node:fs");
+      const restoreDirs = ["agents", "rules", "skills", "commands", "mcp-configs", "plugins"];
+      for (const dir of restoreDirs) {
+        const src = join(backupPath, dir);
+        if (existsSync(src)) {
+          cpSync(src, join(claudeDir, dir), { recursive: true });
+        }
+      }
+      const restoreFiles = ["settings.json", "CLAUDE.md", "AGENTS.md", "keybindings.json"];
+      for (const file of restoreFiles) {
+        const src = join(backupPath, file);
+        if (existsSync(src)) {
+          cpSync(src, join(claudeDir, file));
+        }
+      }
+      output({ status: "ok", message: `Restored from ${timestamp}`, safetyBackup: safetyBackup.timestamp });
       break;
     }
 

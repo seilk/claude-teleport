@@ -8,7 +8,7 @@ import { tmpdir } from "node:os";
 const CLI = "npx tsx src/cli.ts";
 
 function run(args: string): string {
-  return execSync(`${CLI} ${args}`, { encoding: "utf-8", cwd: "/Users/seil/_projects/teleport" });
+  return execSync(`${CLI} ${args}`, { encoding: "utf-8", cwd: process.cwd() });
 }
 
 function parseOutput(output: string): unknown {
@@ -81,8 +81,8 @@ describe("CLI", () => {
     const outputFile = join(tmpDir, "secrets.json");
     run(`secret-scan --snapshot-file ${snapshotFile} --output ${outputFile}`);
     const result = JSON.parse(readFileSync(outputFile, "utf-8"));
-    assert.ok(result.length > 0);
-    assert.equal(result[0].pattern, "AWS Access Key");
+    assert.ok(result.findings.length > 0);
+    assert.equal(result.findings[0].pattern, "AWS Access Key");
   });
 
   it("rce-scan detects dangerous patterns", () => {
@@ -96,7 +96,7 @@ describe("CLI", () => {
 
   it("hub-machines works on git repo with only main", () => {
     // Need a real git repo for branch-based listing
-    execSync("git init", { cwd: tmpDir });
+    execSync("git init -b main", { cwd: tmpDir });
     execSync("git commit --allow-empty -m init", { cwd: tmpDir });
     const result = parseOutput(run(`hub-machines --hub-path ${tmpDir}`)) as unknown[];
     assert.deepEqual(result, []);

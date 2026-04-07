@@ -203,5 +203,32 @@ export function diff(source: Snapshot, target: Snapshot): Diff {
   merge(diffMarketplaces(source.marketplaces, target.marketplaces));
   merge(diffSettings(source.settings, target.settings));
 
+  // Diff keybindings
+  if (source.keybindings && !target.keybindings) {
+    added.push({
+      category: "keybindings",
+      relativePath: "keybindings.json",
+      type: "added",
+      sourceContent: source.keybindings.content,
+    });
+  } else if (!source.keybindings && target.keybindings) {
+    removed.push({
+      category: "keybindings",
+      relativePath: "keybindings.json",
+      type: "removed",
+      targetContent: target.keybindings.content,
+    });
+  } else if (source.keybindings && target.keybindings && source.keybindings.contentHash !== target.keybindings.contentHash) {
+    modified.push({
+      category: "keybindings",
+      relativePath: "keybindings.json",
+      type: "modified",
+      sourceContent: source.keybindings.content,
+      targetContent: target.keybindings.content,
+    });
+  } else if (source.keybindings && target.keybindings) {
+    unchanged.push({ category: "keybindings", relativePath: "keybindings.json", type: "unchanged" });
+  }
+
   return { added, removed, modified, unchanged };
 }
