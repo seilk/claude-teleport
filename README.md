@@ -109,11 +109,13 @@ To force-update in this case:
 # 1. Update the marketplace catalog
 claude plugin marketplace update claude-teleport
 
-# 2. Remove the cached snapshot and reinstall
-claude plugin uninstall claude-teleport@claude-teleport
+# 2. Delete the cached snapshot (force re-copy on next install)
+rm -rf ~/.claude/plugins/cache/claude-teleport/
+
+# 3. Reinstall from the updated marketplace
 claude plugin install claude-teleport@claude-teleport
 
-# 3. Restart Claude Code to apply
+# 4. Restart Claude Code to apply
 ```
 
 > **Tip:** You can verify what's installed vs. what's available:
