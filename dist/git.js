@@ -501,14 +501,66 @@ function readSnapshotFromDir(machineDir, branchName) {
     const pluginsPath = join(machineDir, "plugins", "installed_plugins.json");
     if (existsSync(pluginsPath)) {
         try {
-            plugins = JSON.parse(readFileSync(pluginsPath, "utf-8"));
+            const data = JSON.parse(readFileSync(pluginsPath, "utf-8"));
+            if (Array.isArray(data)) {
+                // Teleport hub format (our format — array of PluginEntry objects)
+                plugins = data;
+            }
+            else if (data && typeof data === "object" && data.version === 2 && data.plugins) {
+                // Raw Claude Code v2 format (shouldn't appear in hub, but handle gracefully)
+                for (const [key, installs] of Object.entries(data.plugins)) {
+                    const atIdx = key.lastIndexOf("@");
+                    if (atIdx === -1)
+                        continue;
+                    const install = installs[0];
+                    if (!install)
+                        continue;
+                    plugins.push({
+                        name: key.slice(0, atIdx),
+                        marketplace: key.slice(atIdx + 1),
+                        version: install["version"],
+                        scope: install["scope"],
+                    });
+                }
+            }
         }
         catch { /* skip */ }
     }
     const marketPath = join(machineDir, "plugins", "known_marketplaces.json");
     if (existsSync(marketPath)) {
         try {
-            marketplaces = JSON.parse(readFileSync(marketPath, "utf-8"));
+            const data = JSON.parse(readFileSync(marketPath, "utf-8"));
+            if (Array.isArray(data)) {
+                // Teleport hub format — but may be old v1 format with {name, repoUrl}
+                marketplaces = data.map((m) => {
+                    if (m["source"] && typeof m["source"] === "object") {
+                        // New format with source object
+                        return m;
+                    }
+                    // Old v1 format: {name, repoUrl}
+                    const repoUrl = String(m["repoUrl"] ?? m["repo"] ?? "");
+                    return {
+                        name: String(m["name"] ?? ""),
+                        source: { source: "github", repo: repoUrl },
+                    };
+                });
+            }
+            else if (data && typeof data === "object") {
+                // Raw Claude Code format (object keyed by name)
+                for (const [name, entry] of Object.entries(data)) {
+                    const src = entry["source"];
+                    if (!src)
+                        continue;
+                    marketplaces.push({
+                        name,
+                        source: {
+                            source: src["source"] === "git" ? "git" : "github",
+                            repo: src["repo"],
+                            url: src["url"],
+                        },
+                    });
+                }
+            }
         }
         catch { /* skip */ }
     }

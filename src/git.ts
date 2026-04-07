@@ -574,11 +574,62 @@ function readSnapshotFromDir(machineDir: string, branchName: string): Snapshot |
   let marketplaces: Marketplace[] = [];
   const pluginsPath = join(machineDir, "plugins", "installed_plugins.json");
   if (existsSync(pluginsPath)) {
-    try { plugins = JSON.parse(readFileSync(pluginsPath, "utf-8")); } catch { /* skip */ }
+    try {
+      const data = JSON.parse(readFileSync(pluginsPath, "utf-8"));
+      if (Array.isArray(data)) {
+        // Teleport hub format (our format — array of PluginEntry objects)
+        plugins = data;
+      } else if (data && typeof data === "object" && data.version === 2 && data.plugins) {
+        // Raw Claude Code v2 format (shouldn't appear in hub, but handle gracefully)
+        for (const [key, installs] of Object.entries(data.plugins as Record<string, unknown[]>)) {
+          const atIdx = key.lastIndexOf("@");
+          if (atIdx === -1) continue;
+          const install = (installs as Array<Record<string, unknown>>)[0];
+          if (!install) continue;
+          plugins.push({
+            name: key.slice(0, atIdx),
+            marketplace: key.slice(atIdx + 1),
+            version: install["version"] as string | undefined,
+            scope: install["scope"] as "user" | "project" | undefined,
+          });
+        }
+      }
+    } catch { /* skip */ }
   }
   const marketPath = join(machineDir, "plugins", "known_marketplaces.json");
   if (existsSync(marketPath)) {
-    try { marketplaces = JSON.parse(readFileSync(marketPath, "utf-8")); } catch { /* skip */ }
+    try {
+      const data = JSON.parse(readFileSync(marketPath, "utf-8"));
+      if (Array.isArray(data)) {
+        // Teleport hub format — but may be old v1 format with {name, repoUrl}
+        marketplaces = data.map((m: Record<string, unknown>) => {
+          if (m["source"] && typeof m["source"] === "object") {
+            // New format with source object
+            return m as unknown as Marketplace;
+          }
+          // Old v1 format: {name, repoUrl}
+          const repoUrl = String(m["repoUrl"] ?? m["repo"] ?? "");
+          return {
+            name: String(m["name"] ?? ""),
+            source: { source: "github" as const, repo: repoUrl },
+          };
+        });
+      } else if (data && typeof data === "object") {
+        // Raw Claude Code format (object keyed by name)
+        for (const [name, entry] of Object.entries(data as Record<string, Record<string, unknown>>)) {
+          const src = entry["source"] as Record<string, string> | undefined;
+          if (!src) continue;
+          marketplaces.push({
+            name,
+            source: {
+              source: src["source"] === "git" ? "git" : "github",
+              repo: src["repo"],
+              url: src["url"],
+            },
+          });
+        }
+      }
+    } catch { /* skip */ }
   }
 
   // Read hooks

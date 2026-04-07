@@ -1,4 +1,4 @@
-import type { Snapshot, Diff, DiffEntry, FileEntry, PluginEntry } from "./types.js";
+import type { Snapshot, Diff, DiffEntry, FileEntry, PluginEntry, Marketplace } from "./types.js";
 import { isCredentialKey } from "./secrets.js";
 
 const FILE_CATEGORIES = [
@@ -47,31 +47,99 @@ function diffFileEntries(
 function diffPlugins(
   source: readonly PluginEntry[],
   target: readonly PluginEntry[],
-): { added: DiffEntry[]; removed: DiffEntry[]; unchanged: DiffEntry[] } {
+): { added: DiffEntry[]; removed: DiffEntry[]; modified: DiffEntry[]; unchanged: DiffEntry[] } {
   const added: DiffEntry[] = [];
   const removed: DiffEntry[] = [];
+  const modified: DiffEntry[] = [];
   const unchanged: DiffEntry[] = [];
 
   const key = (p: PluginEntry) => `${p.marketplace}/${p.name}`;
-  const targetKeys = new Set(target.map(key));
+  const targetMap = new Map(target.map((p) => [key(p), p]));
   const sourceKeys = new Set(source.map(key));
 
   for (const p of source) {
     const k = key(p);
-    if (targetKeys.has(k)) {
-      unchanged.push({ category: "plugins", relativePath: `plugins/${k}`, type: "unchanged" });
+    const targetPlugin = targetMap.get(k);
+    if (!targetPlugin) {
+      added.push({
+        category: "plugins",
+        relativePath: `plugins/${k}`,
+        type: "added",
+        sourceContent: JSON.stringify(p),
+      });
+    } else if (p.version !== targetPlugin.version || p.enabled !== targetPlugin.enabled) {
+      modified.push({
+        category: "plugins",
+        relativePath: `plugins/${k}`,
+        type: "modified",
+        sourceContent: JSON.stringify(p),
+        targetContent: JSON.stringify(targetPlugin),
+      });
     } else {
-      added.push({ category: "plugins", relativePath: `plugins/${k}`, type: "added" });
+      unchanged.push({ category: "plugins", relativePath: `plugins/${k}`, type: "unchanged" });
     }
   }
 
   for (const p of target) {
     if (!sourceKeys.has(key(p))) {
-      removed.push({ category: "plugins", relativePath: `plugins/${key(p)}`, type: "removed" });
+      removed.push({
+        category: "plugins",
+        relativePath: `plugins/${key(p)}`,
+        type: "removed",
+        targetContent: JSON.stringify(p),
+      });
     }
   }
 
-  return { added, removed, unchanged };
+  return { added, removed, modified, unchanged };
+}
+
+function diffMarketplaces(
+  source: readonly Marketplace[],
+  target: readonly Marketplace[],
+): { added: DiffEntry[]; removed: DiffEntry[]; modified: DiffEntry[]; unchanged: DiffEntry[] } {
+  const added: DiffEntry[] = [];
+  const removed: DiffEntry[] = [];
+  const modified: DiffEntry[] = [];
+  const unchanged: DiffEntry[] = [];
+
+  const targetMap = new Map(target.map((m) => [m.name, m]));
+  const sourceNames = new Set(source.map((m) => m.name));
+
+  for (const m of source) {
+    const targetMarket = targetMap.get(m.name);
+    if (!targetMarket) {
+      added.push({
+        category: "marketplaces",
+        relativePath: `marketplaces/${m.name}`,
+        type: "added",
+        sourceContent: JSON.stringify(m),
+      });
+    } else if (JSON.stringify(m.source) !== JSON.stringify(targetMarket.source)) {
+      modified.push({
+        category: "marketplaces",
+        relativePath: `marketplaces/${m.name}`,
+        type: "modified",
+        sourceContent: JSON.stringify(m),
+        targetContent: JSON.stringify(targetMarket),
+      });
+    } else {
+      unchanged.push({ category: "marketplaces", relativePath: `marketplaces/${m.name}`, type: "unchanged" });
+    }
+  }
+
+  for (const m of target) {
+    if (!sourceNames.has(m.name)) {
+      removed.push({
+        category: "marketplaces",
+        relativePath: `marketplaces/${m.name}`,
+        type: "removed",
+        targetContent: JSON.stringify(m),
+      });
+    }
+  }
+
+  return { added, removed, modified, unchanged };
 }
 
 function diffSettings(
@@ -132,6 +200,7 @@ export function diff(source: Snapshot, target: Snapshot): Diff {
   }
 
   merge(diffPlugins(source.plugins, target.plugins));
+  merge(diffMarketplaces(source.marketplaces, target.marketplaces));
   merge(diffSettings(source.settings, target.settings));
 
   return { added, removed, modified, unchanged };

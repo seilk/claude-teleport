@@ -81,6 +81,62 @@ describe("diff", () => {
     assert.ok(result.added.some((e) => e.relativePath.includes("new-plugin")));
   });
 
+  it("detects plugin version changes as modified", () => {
+    const source = makeSnapshot({
+      plugins: [{ name: "superpowers", marketplace: "official", version: "2.0.0" }],
+    });
+    const target = makeSnapshot({
+      plugins: [{ name: "superpowers", marketplace: "official", version: "1.0.0" }],
+    });
+    const result = diff(source, target);
+    assert.equal(result.modified.length, 1);
+    assert.ok(result.modified[0].relativePath.includes("superpowers"));
+    assert.ok(result.modified[0].sourceContent?.includes("2.0.0"));
+  });
+
+  it("detects plugin enabled state changes as modified", () => {
+    const source = makeSnapshot({
+      plugins: [{ name: "superpowers", marketplace: "official", version: "1.0.0", enabled: true }],
+    });
+    const target = makeSnapshot({
+      plugins: [{ name: "superpowers", marketplace: "official", version: "1.0.0", enabled: false }],
+    });
+    const result = diff(source, target);
+    assert.equal(result.modified.length, 1);
+  });
+
+  it("stores PluginEntry JSON in sourceContent for added plugins", () => {
+    const source = makeSnapshot({
+      plugins: [{ name: "superpowers", marketplace: "official", version: "1.0.0" }],
+    });
+    const target = makeSnapshot({ plugins: [] });
+    const result = diff(source, target);
+    const added = result.added.find((e) => e.category === "plugins");
+    assert.ok(added);
+    const parsed = JSON.parse(added.sourceContent!);
+    assert.equal(parsed.name, "superpowers");
+  });
+
+  it("diffs marketplaces by name", () => {
+    const source = makeSnapshot({
+      marketplaces: [{ name: "official", source: { source: "github", repo: "anthropics/plugins" } }],
+    });
+    const target = makeSnapshot({ marketplaces: [] });
+    const result = diff(source, target);
+    assert.ok(result.added.some((e) => e.category === "marketplaces" && e.relativePath.includes("official")));
+  });
+
+  it("detects marketplace source changes as modified", () => {
+    const source = makeSnapshot({
+      marketplaces: [{ name: "my-market", source: { source: "github", repo: "user/new-repo" } }],
+    });
+    const target = makeSnapshot({
+      marketplaces: [{ name: "my-market", source: { source: "github", repo: "user/old-repo" } }],
+    });
+    const result = diff(source, target);
+    assert.equal(result.modified.filter((e) => e.category === "marketplaces").length, 1);
+  });
+
   it("diffs settings key by key", () => {
     const source = makeSnapshot({
       settings: { theme: "dark", newKey: "value" },
