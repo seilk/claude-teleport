@@ -1,10 +1,10 @@
 import { execSync } from "node:child_process";
 import { existsSync, mkdirSync, writeFileSync, readFileSync, readdirSync, rmSync } from "node:fs";
-import { join, relative } from "node:path";
+import { join } from "node:path";
 import { platform, tmpdir } from "node:os";
-import { createHash } from "node:crypto";
 import { PRIVATE_REPO_NAME, PUBLIC_REPO_NAME, TELEPORT_VERSION, CATEGORY_PATHS, GLOBAL_DOC_FILES } from "./constants.js";
 import type { Snapshot, FileEntry, PluginEntry, Marketplace, HookEntry } from "./types.js";
+import { hashContent, scanDirectoryToFileEntries } from "./utils.js";
 
 export interface GhAuthStatus {
   readonly authenticated: boolean;
@@ -132,7 +132,10 @@ function writeSnapshotYaml(snapshot: Snapshot, repoPath: string, machinePrefix: 
     `skills: ${snapshot.skills.length}`,
     `commands: ${snapshot.commands.length}`,
     `plugins: ${snapshot.plugins.length}`,
+    `marketplaces: ${snapshot.marketplaces.length}`,
     `hooks: ${snapshot.hooks.length}`,
+    `mcp: ${snapshot.mcp.length}`,
+    `keybindings: ${snapshot.keybindings ? 1 : 0}`,
   ].join("\n");
   const targetDir = join(repoPath, machinePrefix);
   mkdirSync(targetDir, { recursive: true });
@@ -193,7 +196,9 @@ function writeRegistryYaml(repoPath: string): void {
     const skillsMatch = content.match(/skills:\s*(\d+)/);
     const commandsMatch = content.match(/commands:\s*(\d+)/);
     const pluginsMatch = content.match(/plugins:\s*(\d+)/);
+    const marketplacesMatch = content.match(/marketplaces:\s*(\d+)/);
     const hooksMatch = content.match(/hooks:\s*(\d+)/);
+    const mcpMatch = content.match(/mcp:\s*(\d+)/);
     entries.push([
       `  ${alias}:`,
       `    id: "${idMatch?.[1] ?? ""}"`,
@@ -205,7 +210,9 @@ function writeRegistryYaml(repoPath: string): void {
       `      skills: ${skillsMatch?.[1] ?? "0"}`,
       `      commands: ${commandsMatch?.[1] ?? "0"}`,
       `      plugins: ${pluginsMatch?.[1] ?? "0"}`,
+      `      marketplaces: ${marketplacesMatch?.[1] ?? "0"}`,
       `      hooks: ${hooksMatch?.[1] ?? "0"}`,
+      `      mcp: ${mcpMatch?.[1] ?? "0"}`,
     ].join("\n"));
   }
 
@@ -493,45 +500,7 @@ export function listMachineBranches(repoPath: string): MachineInfo[] {
   return machines;
 }
 
-function hashContent(content: string): string {
-  return createHash("sha256").update(content).digest("hex");
-}
 
-function isTextFile(filePath: string): boolean {
-  try {
-    const buf = readFileSync(filePath);
-    for (let i = 0; i < Math.min(buf.length, 8000); i++) {
-      if (buf[i] === 0) return false;
-    }
-    return true;
-  } catch {
-    return false;
-  }
-}
-
-function scanDirToFileEntries(baseDir: string, dirPath: string, category: string): FileEntry[] {
-  const fullPath = join(baseDir, dirPath);
-  if (!existsSync(fullPath)) return [];
-
-  const entries: FileEntry[] = [];
-  function walk(dir: string): void {
-    for (const item of readdirSync(dir, { withFileTypes: true })) {
-      const itemPath = join(dir, item.name);
-      if (item.isDirectory()) {
-        walk(itemPath);
-      } else if (item.isFile() && isTextFile(itemPath)) {
-        const content = readFileSync(itemPath, "utf-8");
-        entries.push({
-          relativePath: join(category, relative(fullPath, itemPath)),
-          contentHash: hashContent(content),
-          content,
-        });
-      }
-    }
-  }
-  walk(fullPath);
-  return entries;
-}
 
 function readSnapshotFromDir(machineDir: string, branchName: string): Snapshot | null {
   const yamlPath = join(machineDir, "snapshot.yaml");
@@ -542,11 +511,11 @@ function readSnapshotFromDir(machineDir: string, branchName: string): Snapshot |
   const aliasMatch = yaml.match(/machineAlias:\s*(.+)/);
 
   // Read file categories
-  const agents = scanDirToFileEntries(machineDir, CATEGORY_PATHS.agents, "agents");
-  const rules = scanDirToFileEntries(machineDir, CATEGORY_PATHS.rules, "rules");
-  const skills = scanDirToFileEntries(machineDir, CATEGORY_PATHS.skills, "skills");
-  const commands = scanDirToFileEntries(machineDir, CATEGORY_PATHS.commands, "commands");
-  const mcp = scanDirToFileEntries(machineDir, CATEGORY_PATHS.mcp, "mcp-configs");
+  const agents = scanDirectoryToFileEntries(machineDir, CATEGORY_PATHS.agents, "agents");
+  const rules = scanDirectoryToFileEntries(machineDir, CATEGORY_PATHS.rules, "rules");
+  const skills = scanDirectoryToFileEntries(machineDir, CATEGORY_PATHS.skills, "skills");
+  const commands = scanDirectoryToFileEntries(machineDir, CATEGORY_PATHS.commands, "commands");
+  const mcp = scanDirectoryToFileEntries(machineDir, CATEGORY_PATHS.mcp, "mcp-configs");
 
   // Read global docs
   const globalDocs: FileEntry[] = [];

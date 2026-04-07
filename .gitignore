@@ -1,6 +1,10 @@
 node_modules/
+dist/
 .env
 *.local.json
+*.tsbuildinfo
+coverage/
+*.log
 .DS_Store
 /tmp/
 .openchrome/

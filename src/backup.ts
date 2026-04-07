@@ -18,7 +18,7 @@ export async function createBackup(claudeDir: string): Promise<BackupManifest> {
   mkdirSync(backupPath, { recursive: true });
 
   // Copy syncable directories and files
-  const syncDirs = ["agents", "rules", "skills", "commands", "mcp-configs"];
+  const syncDirs = ["agents", "rules", "skills", "commands", "mcp-configs", "plugins"];
   for (const dir of syncDirs) {
     const src = join(claudeDir, dir);
     if (existsSync(src)) {

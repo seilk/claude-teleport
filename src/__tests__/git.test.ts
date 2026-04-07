@@ -13,7 +13,7 @@ function makeSnapshot(overrides?: Partial<Snapshot>): Snapshot {
     machineId: "uuid-123",
     machineAlias: "macbook-pro",
     plugins: [{ name: "superpowers", marketplace: "official" }],
-    marketplaces: [{ name: "official", repoUrl: "https://github.com/anthropics/claude-plugins" }],
+    marketplaces: [{ name: "official", source: { source: "github" as const, repo: "anthropics/claude-plugins" } }],
     agents: [{ relativePath: "agents/planner.md", contentHash: "abc", content: "# Planner" }],
     rules: [],
     skills: [],
@@ -28,6 +28,8 @@ function makeSnapshot(overrides?: Partial<Snapshot>): Snapshot {
 
 function initBareRepo(path: string): void {
   execSync(`git init --bare ${path}`, { encoding: "utf-8" });
+  // Force "main" as default branch regardless of system git config
+  execSync(`git symbolic-ref HEAD refs/heads/main`, { cwd: path, encoding: "utf-8" });
 }
 
 function initWorkingRepo(path: string, barePath: string): void {
