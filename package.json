@@ -1,5 +1,5 @@
 {
-  "name": "teleport",
+  "name": "claude-teleport",
   "version": "0.1.0",
   "description": "Beam your Claude Code setup across machines",
   "type": "module",
