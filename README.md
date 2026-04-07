@@ -37,6 +37,7 @@ Teleport is a Claude Code plugin that syncs your entire environment — plugins,
 | `/claude-teleport:teleport-init` | First-time setup: create private hub, export your config |
 | `/claude-teleport:teleport-pull` | Pull configs from hub to this machine |
 | `/claude-teleport:teleport-push` | Push local changes to hub |
+| `/claude-teleport:teleport-update` | Incremental sync: push only unpushed local changes to private/public repos |
 | `/claude-teleport:teleport-share` | Publish safe configs for others to import |
 | `/claude-teleport:teleport-from <user>` | Import from another user's public repo |
 
@@ -66,6 +67,7 @@ When pulling, you choose which machine's branch to pull from — or use `main` f
 ## What Gets Synced
 
 - Plugins (install metadata)
+- Marketplaces (plugin sources)
 - Skills, Agents, Rules, Commands
 - Settings (credentials excluded)
 - CLAUDE.md, AGENTS.md
