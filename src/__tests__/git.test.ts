@@ -4,7 +4,7 @@ import { mkdtempSync, readFileSync, rmSync, existsSync } from "node:fs";
 import { execSync } from "node:child_process";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
-import { pushToMachineBranch, listMachineBranches, readFromBranch, readMachineFromMain } from "../git.js";
+import { pushToMachineBranch, listMachineBranches, readFromBranch, readMachineFromMain, pushToPublicRepo, readMachineFromPublic } from "../git.js";
 import type { Snapshot } from "../types.js";
 
 function makeSnapshot(overrides?: Partial<Snapshot>): Snapshot {
@@ -239,5 +239,91 @@ describe("readMachineFromMain", () => {
     assert.equal(snapshot.machineId, "uuid-123");
     assert.equal(snapshot.agents.length, 1);
     assert.equal(snapshot.agents[0].content, "# Planner");
+  });
+});
+
+describe("pushToPublicRepo", () => {
+  let tmpDir: string;
+  let barePath: string;
+  let workPath: string;
+
+  beforeEach(() => {
+    tmpDir = mkdtempSync(join(tmpdir(), "teleport-git-pub-"));
+    barePath = join(tmpDir, "bare.git");
+    workPath = join(tmpDir, "work");
+    initBareRepo(barePath);
+    initWorkingRepo(workPath, barePath);
+  });
+
+  afterEach(() => {
+    rmSync(tmpDir, { recursive: true, force: true });
+  });
+
+  it("pushes configs under machines/ namespace to public repo", () => {
+    const result = pushToPublicRepo(workPath, "macbook-pro", makeSnapshot(), "testuser");
+    assert.equal(result.status, "ok");
+
+    // Verify files exist under machines/{alias}/
+    assert.ok(existsSync(join(workPath, "machines", "macbook-pro", "snapshot.yaml")));
+    assert.ok(existsSync(join(workPath, "machines", "macbook-pro", "agents", "planner.md")));
+    assert.equal(
+      readFileSync(join(workPath, "machines", "macbook-pro", "agents", "planner.md"), "utf-8"),
+      "# Planner",
+    );
+  });
+
+  it("generates registry.yaml on main", () => {
+    pushToPublicRepo(workPath, "macbook-pro", makeSnapshot(), "testuser");
+    assert.ok(existsSync(join(workPath, "registry.yaml")));
+    const registry = readFileSync(join(workPath, "registry.yaml"), "utf-8");
+    assert.ok(registry.includes("macbook-pro"));
+  });
+
+  it("generates public README with import instructions", () => {
+    pushToPublicRepo(workPath, "macbook-pro", makeSnapshot(), "testuser");
+    assert.ok(existsSync(join(workPath, "README.md")));
+    const readme = readFileSync(join(workPath, "README.md"), "utf-8");
+    assert.ok(readme.includes("testuser"));
+    assert.ok(readme.includes("teleport-from"));
+  });
+
+  it("returns ok with no error when nothing to commit", () => {
+    pushToPublicRepo(workPath, "macbook-pro", makeSnapshot(), "testuser");
+    // Push same snapshot again — nothing changed
+    const result = pushToPublicRepo(workPath, "macbook-pro", makeSnapshot(), "testuser");
+    assert.equal(result.status, "ok");
+  });
+});
+
+describe("readMachineFromPublic", () => {
+  let tmpDir: string;
+  let barePath: string;
+  let workPath: string;
+
+  beforeEach(() => {
+    tmpDir = mkdtempSync(join(tmpdir(), "teleport-git-pub-"));
+    barePath = join(tmpDir, "bare.git");
+    workPath = join(tmpDir, "work");
+    initBareRepo(barePath);
+    initWorkingRepo(workPath, barePath);
+  });
+
+  afterEach(() => {
+    rmSync(tmpDir, { recursive: true, force: true });
+  });
+
+  it("returns null for nonexistent machine", () => {
+    assert.equal(readMachineFromPublic(workPath, "nonexistent"), null);
+  });
+
+  it("reads machine snapshot from public repo", () => {
+    pushToPublicRepo(workPath, "macbook-pro", makeSnapshot(), "testuser");
+    const snapshot = readMachineFromPublic(workPath, "macbook-pro");
+    assert.ok(snapshot);
+    assert.equal(snapshot.machineId, "uuid-123");
+    assert.equal(snapshot.machineAlias, "macbook-pro");
+    assert.equal(snapshot.agents.length, 1);
+    assert.equal(snapshot.agents[0].content, "# Planner");
+    assert.equal((snapshot.settings as Record<string, unknown>).theme, "dark");
   });
 });

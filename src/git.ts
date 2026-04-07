@@ -691,3 +691,84 @@ export function createPublicRepo(username: string): string {
     return `https://github.com/${username}/${PUBLIC_REPO_NAME}`;
   }
 }
+
+// --- Public repo operations ---
+
+export function publicRepoExists(username: string): { exists: boolean; repoUrl?: string } {
+  try {
+    exec(`gh repo view ${username}/${PUBLIC_REPO_NAME} --json url -q .url`);
+    const repoUrl = `https://github.com/${username}/${PUBLIC_REPO_NAME}`;
+    return { exists: true, repoUrl };
+  } catch {
+    return { exists: false };
+  }
+}
+
+export function cloneOrPullPublic(username: string, localPath: string): void {
+  if (existsSync(join(localPath, ".git"))) {
+    exec("git pull --rebase", localPath);
+  } else {
+    if (existsSync(localPath)) {
+      rmSync(localPath, { recursive: true, force: true });
+    }
+    mkdirSync(localPath, { recursive: true });
+    exec(`gh repo clone ${username}/${PUBLIC_REPO_NAME} "${localPath}"`);
+  }
+}
+
+export function readMachineFromPublic(repoPath: string, alias: string): Snapshot | null {
+  const machineDir = join(repoPath, "machines", alias);
+  if (!existsSync(machineDir)) return null;
+  return readSnapshotFromDir(machineDir, alias);
+}
+
+export function pushToPublicRepo(
+  repoPath: string,
+  machineAlias: string,
+  snapshot: Snapshot,
+  username: string = "",
+): PushResult {
+  const machinePrefix = `machines/${machineAlias}`;
+
+  let originalHead: string;
+  try {
+    originalHead = exec("git rev-parse HEAD", repoPath);
+  } catch {
+    originalHead = "";
+  }
+
+  try {
+    // Write configs under machines/{alias}/
+    writeSnapshotYaml(snapshot, repoPath, machinePrefix);
+    writeConfigFiles(snapshot, repoPath, machinePrefix);
+
+    // Update registry and readme on main
+    writeRegistryYaml(repoPath);
+    if (username) {
+      writeHubReadme(repoPath, username, true);
+    }
+
+    exec("git add -A", repoPath);
+    try {
+      exec(`git commit -m "teleport: update ${machineAlias} (public)"`, repoPath);
+    } catch {
+      // Nothing to commit
+      return { status: "ok" };
+    }
+    exec("git push origin main", repoPath);
+
+    return { status: "ok" };
+  } catch (err) {
+    // Rollback
+    try {
+      if (originalHead) {
+        exec(`git reset --hard ${originalHead}`, repoPath);
+      }
+    } catch { /* best effort */ }
+
+    return {
+      status: "error",
+      error: err instanceof Error ? err.message : String(err),
+    };
+  }
+}

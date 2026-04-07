@@ -9,7 +9,7 @@ import { applyDiff } from "./applier.js";
 import { createBackup, listBackups, cleanOldBackups } from "./backup.js";
 import { scanForSecrets, scanForRcePatterns } from "./secrets.js";
 import { getMachineId, getMachineAlias } from "./machine.js";
-import { checkGhAuth, cloneOrPullHub, createHubRepo, hubExists, listMachineBranches, pushToMachineBranch, readFromBranch, readMachineFromMain, writeHubReadme, migrateRootToNamespaced } from "./git.js";
+import { checkGhAuth, cloneOrPullHub, createHubRepo, hubExists, listMachineBranches, pushToMachineBranch, readFromBranch, readMachineFromMain, writeHubReadme, migrateRootToNamespaced, publicRepoExists, cloneOrPullPublic, readMachineFromPublic, pushToPublicRepo } from "./git.js";
 import { CLAUDE_DIR, VALID_CATEGORIES } from "./constants.js";
 import type { Snapshot, DiffEntry, FileEntry } from "./types.js";
 
@@ -54,6 +54,9 @@ const COMMAND_HELP: Readonly<Record<string, string>> = {
   "hub-push": "Push snapshot to hub.\n  Usage: teleport hub-push --hub-path <path> --machine <alias> --snapshot-file <file>",
   "hub-machines": "List machines in the hub.\n  Usage: teleport hub-machines --hub-path <path>",
   "hub-read-branch": "Read snapshot from a branch.\n  Usage: teleport hub-read-branch --hub-path <path> --branch <name> [--output <file>]",
+  "hub-check-public": "Check if a public teleport repo exists.\n  Usage: teleport hub-check-public --username <user>",
+  "hub-read-public": "Read snapshot from a public repo.\n  Usage: teleport hub-read-public --hub-path <path> --machine <alias> [--output <file>]",
+  "hub-push-public": "Push snapshot to a public repo.\n  Usage: teleport hub-push-public --hub-path <path> --machine <alias> --snapshot-file <file> [--username <user>]",
 };
 
 function readJsonFile<T>(path: string): T {
@@ -391,11 +394,70 @@ async function main(): Promise<void> {
       break;
     }
 
+    case "hub-check-public": {
+      const username = flags["username"];
+      if (!username) {
+        output({ status: "error", error: "Missing --username" });
+        process.exitCode = 1;
+        break;
+      }
+      const check = publicRepoExists(username);
+      output(check);
+      break;
+    }
+
+    case "hub-read-public": {
+      const hubPath = flags["hub-path"];
+      const alias = flags["machine"];
+      if (!hubPath || !alias) {
+        output({ status: "error", error: "Missing --hub-path or --machine" });
+        process.exitCode = 1;
+        break;
+      }
+      const pubSnapshot = readMachineFromPublic(hubPath, alias);
+      const outputPath = flags["output"];
+      if (outputPath && pubSnapshot) {
+        writeFileSync(outputPath, JSON.stringify(pubSnapshot, null, 2));
+        output({ status: "ok", path: outputPath });
+      } else {
+        output(pubSnapshot ?? { status: "error", error: "Machine not found in public repo" });
+      }
+      break;
+    }
+
+    case "hub-push-public": {
+      const hubPath = flags["hub-path"];
+      const machine = flags["machine"];
+      const snapshotFile = flags["snapshot-file"];
+      const username = flags["username"] ?? "";
+      const missingFlags = [
+        ...(!hubPath ? ["--hub-path"] : []),
+        ...(!machine ? ["--machine"] : []),
+        ...(!snapshotFile ? ["--snapshot-file"] : []),
+      ];
+      if (missingFlags.length > 0) {
+        output({ status: "error", error: `Missing required flags: ${missingFlags.join(", ")}` });
+        process.exitCode = 1;
+        break;
+      }
+      const snapshot = readJsonFile<Snapshot>(snapshotFile);
+      const pushResult = pushToPublicRepo(hubPath, machine, snapshot, username);
+      if (pushResult.status === "error") {
+        output({ status: "error", error: pushResult.error });
+        process.exitCode = 1;
+        break;
+      }
+      const itemsWritten = snapshot.agents.length + snapshot.rules.length + snapshot.skills.length;
+      output({ status: "ok", machine, itemsWritten });
+      break;
+    }
+
     default:
       output({ status: "error", error: `Unknown command: ${command}`, available: [
         "context", "scan", "diff", "apply", "backup", "backup-list",
         "backup-restore", "secret-scan", "rce-scan", "hub-init",
         "hub-push", "hub-machines", "hub-read-branch", "hub-read-main",
+        "hub-check-public", "hub-read-public", "hub-push-public",
       ]});
       process.exitCode = 1;
   }
