@@ -122,4 +122,55 @@ describe("CLI", () => {
     const result = parseOutput(run(`backup-list --claude-dir ${tmpDir}`)) as unknown[];
     assert.ok(result.length > 0);
   });
+
+  it("hub-check-public requires --username", () => {
+    try {
+      run("hub-check-public");
+      assert.fail("Should have thrown");
+    } catch (err) {
+      const output = (err as { stdout: string }).stdout;
+      assert.ok(output.includes("Missing --username"));
+    }
+  });
+
+  it("hub-read-public requires --hub-path and --machine", () => {
+    try {
+      run("hub-read-public");
+      assert.fail("Should have thrown");
+    } catch (err) {
+      const output = (err as { stdout: string }).stdout;
+      assert.ok(output.includes("Missing --hub-path or --machine"));
+    }
+  });
+
+  it("hub-push-public requires --hub-path, --machine, --snapshot-file", () => {
+    try {
+      run("hub-push-public");
+      assert.fail("Should have thrown");
+    } catch (err) {
+      const output = (err as { stdout: string }).stdout;
+      assert.ok(output.includes("Missing required flags"));
+    }
+  });
+
+  it("hub-read-public returns error for nonexistent machine", () => {
+    // Need a real git repo
+    execSync("git init", { cwd: tmpDir });
+    execSync("git commit --allow-empty -m init", { cwd: tmpDir });
+    const result = parseOutput(run(`hub-read-public --hub-path ${tmpDir} --machine nonexistent`)) as Record<string, unknown>;
+    assert.equal(result.status, "error");
+    assert.ok((result.error as string).includes("Machine not found"));
+  });
+
+  it("available commands list includes public repo commands", () => {
+    try {
+      run("nonexistent");
+      assert.fail("Should have thrown");
+    } catch (err) {
+      const output = (err as { stdout: string }).stdout;
+      assert.ok(output.includes("hub-check-public"));
+      assert.ok(output.includes("hub-read-public"));
+      assert.ok(output.includes("hub-push-public"));
+    }
+  });
 });
