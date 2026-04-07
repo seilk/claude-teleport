@@ -21,7 +21,7 @@ Set up Teleport for the first time on this machine.
 3. **Create hub repo**: Run `node "${CLAUDE_PLUGIN_ROOT}/dist/cli.js" hub-init --clone-to /tmp/claude-teleport-hub`. Parse result.
    - If `created` is false: inform user "Hub already exists at <repoUrl>. Using existing."
    - If `created` is true: inform user "Created private hub at <repoUrl>."
-   - Store `username` from the result and `localPath` for later use. When the hub already existed, `localPath` will be `/tmp/claude-teleport-hub` (the `--clone-to` path).
+   - Store `username` and `localPath` from the result for later use.
 
 4. **Scan local environment**: Run `node "${CLAUDE_PLUGIN_ROOT}/dist/cli.js" scan --claude-dir ~/.claude --output /tmp/teleport-scan.json`. Parse the JSON output — it contains a `summary` object with counts per category.
 
