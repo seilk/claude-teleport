@@ -32,9 +32,24 @@ Unlike `/teleport-push` (full push to private) or `/teleport-share` (curate for 
    - If machine not found in public repo: note "This machine has no configs in the public repo yet."
    - Otherwise: `diff --source-file /tmp/teleport-update-local.json --target-file /tmp/hub-public-snap.json --output /tmp/diff-public.json`.
 
-7. **Check empty**: Read both diff files. If both have no added/modified items: "Everything is up to date. No local changes to push." STOP.
+7. **Check empty**: Read both diff files. The diff output has this structure:
+   ```json
+   {
+     "added": [...],
+     "modified": [...],
+     "removed": [...],
+     "unchanged": [...],
+     "summary": {
+       "added": {"agents": 3, "rules": 1},
+       "modified": {"skills": 2},
+       "removed": {},
+       "hasChanges": true
+     }
+   }
+   ```
+   Check `summary.hasChanges` on each diff file. If both diffs have `summary.hasChanges === false`: respond "Everything is up to date. No local changes to push." STOP.
 
-8. **Present changes summary**: Show a clear summary for each target:
+8. **Present changes summary**: Use `summary.added` and `summary.modified` from each diff to build the display. Format each category count as `+N` for added and `~N` for modified:
    ```
    Private hub (claude-teleport-private):
      +3 agents, ~2 rules, +1 skill (not yet pushed)
@@ -42,7 +57,7 @@ Unlike `/teleport-push` (full push to private) or `/teleport-share` (curate for 
    Public repo (claude-teleport-public):
      +5 agents, ~1 settings (not yet published)
    ```
-   Only show targets that have changes. Use `added` count for `+N` and `modified` count for `~N`.
+   Only show targets where `summary.hasChanges` is true.
 
 9. **Select target**: Always ask the user which target(s) to update using `AskUserQuestion` (single-select).
    - If `pubHubPath` exists (public repo found): show options "Private hub only", "Public repo only", "Both". Indicate which targets have detected changes (e.g., append "(changes detected)" or "(no changes)") so the user can make an informed choice — but let them pick any option regardless.

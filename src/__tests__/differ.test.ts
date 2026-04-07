@@ -160,4 +160,81 @@ describe("diff", () => {
     const apiKeyDiff = result.modified.find((e) => e.relativePath.includes("apiKey"));
     assert.equal(apiKeyDiff?.riskLevel, "high");
   });
+
+  describe("summary", () => {
+    it("has hasChanges false for identical snapshots", () => {
+      const agents = [{ relativePath: "agents/a.md", contentHash: "abc" }];
+      const a = makeSnapshot({ agents });
+      const b = makeSnapshot({ agents });
+      const result = diff(a, b);
+      assert.equal(result.summary.hasChanges, false);
+      assert.deepEqual(result.summary.added, {});
+      assert.deepEqual(result.summary.modified, {});
+      assert.deepEqual(result.summary.removed, {});
+    });
+
+    it("has hasChanges true when items are added", () => {
+      const source = makeSnapshot({
+        agents: [{ relativePath: "agents/new.md", contentHash: "abc" }],
+      });
+      const target = makeSnapshot();
+      const result = diff(source, target);
+      assert.equal(result.summary.hasChanges, true);
+      assert.deepEqual(result.summary.added, { agents: 1 });
+    });
+
+    it("groups added counts by category", () => {
+      const source = makeSnapshot({
+        agents: [
+          { relativePath: "agents/a.md", contentHash: "a" },
+          { relativePath: "agents/b.md", contentHash: "b" },
+        ],
+        rules: [{ relativePath: "rules/r.md", contentHash: "r" }],
+      });
+      const target = makeSnapshot();
+      const result = diff(source, target);
+      assert.equal(result.summary.added.agents, 2);
+      assert.equal(result.summary.added.rules, 1);
+    });
+
+    it("groups modified counts by category", () => {
+      const source = makeSnapshot({
+        agents: [{ relativePath: "agents/a.md", contentHash: "new", content: "new" }],
+        skills: [{ relativePath: "skills/s.md", contentHash: "new", content: "new" }],
+      });
+      const target = makeSnapshot({
+        agents: [{ relativePath: "agents/a.md", contentHash: "old", content: "old" }],
+        skills: [{ relativePath: "skills/s.md", contentHash: "old", content: "old" }],
+      });
+      const result = diff(source, target);
+      assert.equal(result.summary.modified.agents, 1);
+      assert.equal(result.summary.modified.skills, 1);
+    });
+
+    it("groups removed counts by category", () => {
+      const source = makeSnapshot();
+      const target = makeSnapshot({
+        agents: [{ relativePath: "agents/old.md", contentHash: "abc" }],
+      });
+      const result = diff(source, target);
+      assert.equal(result.summary.removed.agents, 1);
+      assert.equal(result.summary.hasChanges, true);
+    });
+
+    it("handles mixed categories correctly", () => {
+      const source = makeSnapshot({
+        agents: [{ relativePath: "agents/new.md", contentHash: "a" }],
+        rules: [{ relativePath: "rules/r.md", contentHash: "new", content: "new" }],
+      });
+      const target = makeSnapshot({
+        rules: [{ relativePath: "rules/r.md", contentHash: "old", content: "old" }],
+        skills: [{ relativePath: "skills/gone.md", contentHash: "x" }],
+      });
+      const result = diff(source, target);
+      assert.equal(result.summary.added.agents, 1);
+      assert.equal(result.summary.modified.rules, 1);
+      assert.equal(result.summary.removed.skills, 1);
+      assert.equal(result.summary.hasChanges, true);
+    });
+  });
 });

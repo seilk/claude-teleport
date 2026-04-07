@@ -1,4 +1,4 @@
-import type { Snapshot, Diff, DiffEntry, FileEntry, PluginEntry, Marketplace } from "./types.js";
+import type { Snapshot, Diff, DiffEntry, DiffSummary, FileEntry, PluginEntry, Marketplace } from "./types.js";
 import { isCredentialKey } from "./secrets.js";
 
 const FILE_CATEGORIES = [
@@ -180,6 +180,26 @@ function diffSettings(
   return { added, removed, modified, unchanged };
 }
 
+function buildSummary(
+  added: readonly DiffEntry[],
+  modified: readonly DiffEntry[],
+  removed: readonly DiffEntry[],
+): DiffSummary {
+  const countByCategory = (entries: readonly DiffEntry[]): Record<string, number> => {
+    const counts: Record<string, number> = {};
+    for (const entry of entries) {
+      counts[entry.category] = (counts[entry.category] ?? 0) + 1;
+    }
+    return counts;
+  };
+  return {
+    added: countByCategory(added),
+    modified: countByCategory(modified),
+    removed: countByCategory(removed),
+    hasChanges: added.length > 0 || modified.length > 0 || removed.length > 0,
+  };
+}
+
 export function diff(source: Snapshot, target: Snapshot): Diff {
   const added: DiffEntry[] = [];
   const removed: DiffEntry[] = [];
@@ -230,5 +250,5 @@ export function diff(source: Snapshot, target: Snapshot): Diff {
     unchanged.push({ category: "keybindings", relativePath: "keybindings.json", type: "unchanged" });
   }
 
-  return { added, removed, modified, unchanged };
+  return { added, removed, modified, unchanged, summary: buildSummary(added, modified, removed) };
 }

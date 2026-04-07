@@ -60,11 +60,19 @@ export interface DiffEntry {
   readonly riskLevel?: RiskLevel;
 }
 
+export interface DiffSummary {
+  readonly added: Readonly<Record<string, number>>;
+  readonly modified: Readonly<Record<string, number>>;
+  readonly removed: Readonly<Record<string, number>>;
+  readonly hasChanges: boolean;
+}
+
 export interface Diff {
   readonly added: readonly DiffEntry[];
   readonly removed: readonly DiffEntry[];
   readonly modified: readonly DiffEntry[];
   readonly unchanged: readonly DiffEntry[];
+  readonly summary: DiffSummary;
 }
 
 export interface BackupManifest {
