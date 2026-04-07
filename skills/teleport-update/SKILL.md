@@ -44,10 +44,9 @@ Unlike `/teleport-push` (full push to private) or `/teleport-share` (curate for 
    ```
    Only show targets that have changes. Use `added` count for `+N` and `modified` count for `~N`.
 
-9. **Select target**: Use `AskUserQuestion` (single-select). Options depend on what has changes:
-   - If both have changes: "Private hub only", "Public repo only", "Both"
-   - If only private has changes: skip this question, proceed with private.
-   - If only public has changes: skip this question, proceed with public.
+9. **Select target**: Always ask the user which target(s) to update using `AskUserQuestion` (single-select).
+   - If `pubHubPath` exists (public repo found): show options "Private hub only", "Public repo only", "Both". Indicate which targets have detected changes (e.g., append "(changes detected)" or "(no changes)") so the user can make an informed choice — but let them pick any option regardless.
+   - If `pubHubPath` is null (no public repo): show options "Private hub only", "Create & push public repo too". If user picks public, run the public repo creation flow (same as `/teleport-share` init) before proceeding.
 
 10. **Category & item selection** (per selected target):
     - For each target, read its diff file.
