@@ -76,7 +76,71 @@ describe("applyDiff", () => {
     assert.equal(settings.existing, "value");
   });
 
-  it("generates plugin install instructions", async () => {
+  it("generates plugin install instructions with CLI command", async () => {
+    const plugin = { name: "superpowers", marketplace: "claude-plugins-official", version: "5.0.7", enabled: true };
+    const selections: DiffEntry[] = [
+      {
+        category: "plugins",
+        relativePath: "plugins/claude-plugins-official/superpowers",
+        type: "added",
+        sourceContent: JSON.stringify(plugin),
+      },
+    ];
+    const result = await applyDiff(selections, mockClaudeDir);
+    assert.ok(result.pluginInstructions.length > 0);
+    assert.ok(result.pluginInstructions[0].includes("superpowers"));
+    assert.ok(result.pluginInstructions[0].includes("claude-plugins-official"));
+  });
+
+  it("writes enabledPlugins to settings.json when applying a plugin", async () => {
+    const plugin = { name: "superpowers", marketplace: "official", version: "1.0.0", enabled: true };
+    const selections: DiffEntry[] = [
+      {
+        category: "plugins",
+        relativePath: "plugins/official/superpowers",
+        type: "added",
+        sourceContent: JSON.stringify(plugin),
+      },
+    ];
+    await applyDiff(selections, mockClaudeDir);
+    const settings = JSON.parse(readFileSync(join(mockClaudeDir, "settings.json"), "utf-8"));
+    assert.equal(settings.enabledPlugins["superpowers@official"], true);
+  });
+
+  it("generates plugin update instruction for version change", async () => {
+    const sourcePlugin = { name: "superpowers", marketplace: "official", version: "2.0.0" };
+    const targetPlugin = { name: "superpowers", marketplace: "official", version: "1.0.0" };
+    const selections: DiffEntry[] = [
+      {
+        category: "plugins",
+        relativePath: "plugins/official/superpowers",
+        type: "modified",
+        sourceContent: JSON.stringify(sourcePlugin),
+        targetContent: JSON.stringify(targetPlugin),
+      },
+    ];
+    const result = await applyDiff(selections, mockClaudeDir);
+    assert.ok(result.pluginInstructions.some((i) => i.includes("update")));
+  });
+
+  it("generates marketplace instructions and writes extraKnownMarketplaces", async () => {
+    const marketplace = { name: "third-party", source: { source: "github", repo: "user/my-plugins" } };
+    const selections: DiffEntry[] = [
+      {
+        category: "marketplaces",
+        relativePath: "marketplaces/third-party",
+        type: "added",
+        sourceContent: JSON.stringify(marketplace),
+      },
+    ];
+    const result = await applyDiff(selections, mockClaudeDir);
+    assert.ok(result.marketplaceInstructions.length > 0);
+    assert.ok(result.marketplaceInstructions[0].includes("user/my-plugins"));
+    const settings = JSON.parse(readFileSync(join(mockClaudeDir, "settings.json"), "utf-8"));
+    assert.ok(settings.extraKnownMarketplaces["third-party"]);
+  });
+
+  it("fallback: generates install instruction when sourceContent is missing", async () => {
     const selections: DiffEntry[] = [
       {
         category: "plugins",

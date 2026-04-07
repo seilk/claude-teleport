@@ -8,11 +8,20 @@ export interface PluginEntry {
   readonly name: string;
   readonly marketplace: string;
   readonly version?: string;
+  readonly scope?: "user" | "project";
+  readonly enabled?: boolean;
+  readonly gitCommitSha?: string;
+}
+
+export interface MarketplaceSource {
+  readonly source: "github" | "git";
+  readonly repo?: string;
+  readonly url?: string;
 }
 
 export interface Marketplace {
   readonly name: string;
-  readonly repoUrl: string;
+  readonly source: MarketplaceSource;
 }
 
 export interface HookEntry {

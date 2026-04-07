@@ -79,11 +79,54 @@ function scanPlugins(baseDir: string): PluginEntry[] {
   if (!existsSync(filePath)) return [];
   try {
     const data = JSON.parse(readFileSync(filePath, "utf-8"));
-    return (Array.isArray(data) ? data : []).map((p: Record<string, string>) => ({
-      name: p.name ?? "",
-      marketplace: p.marketplace ?? "",
-      version: p.version,
-    }));
+
+    // Read enabledPlugins from settings.json to set enabled flag
+    const settingsPath = join(baseDir, "settings.json");
+    const enabledPlugins: Record<string, boolean> = {};
+    if (existsSync(settingsPath)) {
+      try {
+        const settings = JSON.parse(readFileSync(settingsPath, "utf-8"));
+        if (settings.enabledPlugins && typeof settings.enabledPlugins === "object") {
+          Object.assign(enabledPlugins, settings.enabledPlugins);
+        }
+      } catch { /* skip */ }
+    }
+
+    // v2 format: { version: 2, plugins: { "name@marketplace": [...installs] } }
+    if (data && typeof data === "object" && data.version === 2 && data.plugins) {
+      const entries: PluginEntry[] = [];
+      for (const [key, installs] of Object.entries(data.plugins as Record<string, unknown[]>)) {
+        const atIdx = key.lastIndexOf("@");
+        if (atIdx === -1) continue;
+        const name = key.slice(0, atIdx);
+        const marketplace = key.slice(atIdx + 1);
+        // Prefer user-scope install; fall back to first entry
+        const allInstalls = installs as Array<Record<string, unknown>>;
+        const install = allInstalls.find((i) => i["scope"] === "user") ?? allInstalls[0];
+        if (!install) continue;
+        entries.push({
+          name,
+          marketplace,
+          version: install["version"] as string | undefined,
+          scope: install["scope"] as "user" | "project" | undefined,
+          enabled: enabledPlugins[key],
+          gitCommitSha: install["gitCommitSha"] as string | undefined,
+        });
+      }
+      return entries;
+    }
+
+    // v1 fallback: flat array
+    if (Array.isArray(data)) {
+      return data.map((p: Record<string, string>) => ({
+        name: p.name ?? "",
+        marketplace: p.marketplace ?? "",
+        version: p.version,
+        enabled: enabledPlugins[`${p.name}@${p.marketplace}`],
+      }));
+    }
+
+    return [];
   } catch {
     return [];
   }
@@ -91,16 +134,67 @@ function scanPlugins(baseDir: string): PluginEntry[] {
 
 function scanMarketplaces(baseDir: string): Marketplace[] {
   const filePath = join(baseDir, "plugins", "known_marketplaces.json");
-  if (!existsSync(filePath)) return [];
-  try {
-    const data = JSON.parse(readFileSync(filePath, "utf-8"));
-    return (Array.isArray(data) ? data : []).map((m: Record<string, string>) => ({
-      name: m.name ?? "",
-      repoUrl: m.repo ?? m.repoUrl ?? "",
-    }));
-  } catch {
-    return [];
+
+  const results = new Map<string, Marketplace>();
+
+  if (existsSync(filePath)) {
+    try {
+      const data = JSON.parse(readFileSync(filePath, "utf-8"));
+
+      // v2 format: object keyed by marketplace name
+      if (data && typeof data === "object" && !Array.isArray(data)) {
+        for (const [name, entry] of Object.entries(data as Record<string, Record<string, unknown>>)) {
+          const src = entry["source"] as Record<string, string> | undefined;
+          if (!src) continue;
+          results.set(name, {
+            name,
+            source: {
+              source: src["source"] === "git" ? "git" : "github",
+              repo: src["repo"],
+              url: src["url"],
+            },
+          });
+        }
+      } else if (Array.isArray(data)) {
+        // v1 fallback: flat array with {name, repo/repoUrl}
+        for (const m of data as Array<Record<string, string>>) {
+          const name = m["name"] ?? "";
+          if (!name) continue;
+          const repoUrl = m["repo"] ?? m["repoUrl"] ?? "";
+          results.set(name, {
+            name,
+            source: { source: "github", repo: repoUrl },
+          });
+        }
+      }
+    } catch { /* skip */ }
   }
+
+  // Merge extraKnownMarketplaces from settings.json (these are third-party marketplaces)
+  const settingsPath = join(baseDir, "settings.json");
+  if (existsSync(settingsPath)) {
+    try {
+      const settings = JSON.parse(readFileSync(settingsPath, "utf-8"));
+      const extra = settings["extraKnownMarketplaces"] as Record<string, Record<string, unknown>> | undefined;
+      if (extra && typeof extra === "object") {
+        for (const [name, entry] of Object.entries(extra)) {
+          if (results.has(name)) continue; // known_marketplaces.json takes precedence
+          const src = entry["source"] as Record<string, string> | undefined;
+          if (!src) continue;
+          results.set(name, {
+            name,
+            source: {
+              source: src["source"] === "git" ? "git" : "github",
+              repo: src["repo"],
+              url: src["url"],
+            },
+          });
+        }
+      }
+    } catch { /* skip */ }
+  }
+
+  return Array.from(results.values());
 }
 
 function scanGlobalDocs(baseDir: string): FileEntry[] {

@@ -28,11 +28,18 @@ describe("scanClaudeDir", () => {
     );
     writeFileSync(
       join(mockClaudeDir, "plugins", "installed_plugins.json"),
-      JSON.stringify([{ name: "superpowers", marketplace: "official", version: "1.0.0" }])
+      JSON.stringify({
+        version: 2,
+        plugins: {
+          "superpowers@official": [{ scope: "user", version: "1.0.0", gitCommitSha: "abc123" }],
+        },
+      })
     );
     writeFileSync(
       join(mockClaudeDir, "plugins", "known_marketplaces.json"),
-      JSON.stringify([{ name: "official", repo: "https://github.com/anthropics/claude-plugins" }])
+      JSON.stringify({
+        official: { source: { source: "github", repo: "anthropics/claude-plugins" }, installLocation: "/tmp/test", lastUpdated: "2026-01-01T00:00:00Z" },
+      })
     );
   });
 
@@ -82,16 +89,69 @@ describe("scanClaudeDir", () => {
     assert.ok(!("credentials" in snapshot.settings));
   });
 
-  it("scans installed plugins", async () => {
+  it("scans installed plugins from v2 format", async () => {
     const snapshot = await scanClaudeDir(mockClaudeDir);
     assert.equal(snapshot.plugins.length, 1);
     assert.equal(snapshot.plugins[0].name, "superpowers");
+    assert.equal(snapshot.plugins[0].marketplace, "official");
+    assert.equal(snapshot.plugins[0].version, "1.0.0");
+    assert.equal(snapshot.plugins[0].scope, "user");
+    assert.equal(snapshot.plugins[0].gitCommitSha, "abc123");
   });
 
-  it("scans known marketplaces", async () => {
+  it("reads enabled state from settings.json enabledPlugins", async () => {
+    writeFileSync(
+      join(mockClaudeDir, "settings.json"),
+      JSON.stringify({ theme: "dark", enabledPlugins: { "superpowers@official": true } })
+    );
+    const snapshot = await scanClaudeDir(mockClaudeDir);
+    assert.equal(snapshot.plugins[0].enabled, true);
+  });
+
+  it("scans plugins from v1 fallback format", async () => {
+    writeFileSync(
+      join(mockClaudeDir, "plugins", "installed_plugins.json"),
+      JSON.stringify([{ name: "legacy-plugin", marketplace: "old-market", version: "2.0.0" }])
+    );
+    const snapshot = await scanClaudeDir(mockClaudeDir);
+    assert.equal(snapshot.plugins.length, 1);
+    assert.equal(snapshot.plugins[0].name, "legacy-plugin");
+  });
+
+  it("scans known marketplaces from object format", async () => {
     const snapshot = await scanClaudeDir(mockClaudeDir);
     assert.equal(snapshot.marketplaces.length, 1);
     assert.equal(snapshot.marketplaces[0].name, "official");
+    assert.equal(snapshot.marketplaces[0].source.source, "github");
+    assert.equal(snapshot.marketplaces[0].source.repo, "anthropics/claude-plugins");
+  });
+
+  it("merges extraKnownMarketplaces from settings.json", async () => {
+    writeFileSync(
+      join(mockClaudeDir, "settings.json"),
+      JSON.stringify({
+        extraKnownMarketplaces: {
+          "third-party": { source: { source: "github", repo: "user/my-plugins" } },
+        },
+      })
+    );
+    const snapshot = await scanClaudeDir(mockClaudeDir);
+    assert.ok(snapshot.marketplaces.some((m) => m.name === "third-party"));
+    assert.ok(snapshot.marketplaces.some((m) => m.name === "official"));
+  });
+
+  it("does not duplicate marketplaces present in both known_marketplaces and extraKnownMarketplaces", async () => {
+    writeFileSync(
+      join(mockClaudeDir, "settings.json"),
+      JSON.stringify({
+        extraKnownMarketplaces: {
+          official: { source: { source: "github", repo: "anthropics/claude-plugins" } },
+        },
+      })
+    );
+    const snapshot = await scanClaudeDir(mockClaudeDir);
+    const officialEntries = snapshot.marketplaces.filter((m) => m.name === "official");
+    assert.equal(officialEntries.length, 1);
   });
 
   it("handles missing directories gracefully", async () => {
