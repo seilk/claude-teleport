@@ -85,11 +85,45 @@ When pulling, you choose which machine's branch to pull from — or use `main` f
 
 ## Updating
 
-To update to the latest version:
+### When a new version is released (version bump)
 
 ```bash
-cd ~/.claude/plugins/claude-teleport && git pull origin main
+# 1. Update the marketplace catalog (pulls latest from GitHub)
+claude plugin marketplace update claude-teleport
+
+# 2. Update the installed plugin
+claude plugin update claude-teleport@claude-teleport
+
+# 3. Restart Claude Code to apply
 ```
+
+### When only commits changed (no version bump)
+
+`claude plugin update` compares the **version string** in `plugin.json`, not the git commit SHA.
+If the upstream repo has new commits but the version hasn't changed, `plugin update` will say
+"already at the latest version" and skip.
+
+To force-update in this case:
+
+```bash
+# 1. Update the marketplace catalog
+claude plugin marketplace update claude-teleport
+
+# 2. Remove the cached snapshot and reinstall
+claude plugin uninstall claude-teleport@claude-teleport
+claude plugin install claude-teleport@claude-teleport
+
+# 3. Restart Claude Code to apply
+```
+
+> **Tip:** You can verify what's installed vs. what's available:
+> ```bash
+> # Check installed version and commit SHA
+> claude plugin list
+>
+> # Check marketplace HEAD
+> cd ~/.claude/plugins/marketplaces/claude-teleport && git log --oneline -1
+> ```
 
 ## Requirements
 
