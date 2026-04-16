@@ -299,7 +299,7 @@ function generateHubReadme(username: string, isPublic: boolean): string {
       "",
       "## Commands",
       "",
-      "- `/teleport-push` — Push local configs to this hub",
+      "- `/teleport-update` — Push local configs (diffs only) to this hub",
       "- `/teleport-pull` — Pull configs from this hub to local machine",
     );
   }
