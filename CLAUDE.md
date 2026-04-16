@@ -155,7 +155,24 @@ Located in `skills/`:
 ## Adding a New Synced Category
 
 1. Add to `CATEGORY_PATHS` in `src/constants.ts`
-2. Add scan logic in `src/scanner.ts` -> `scanClaudeDir()`
-3. Add the field to `Snapshot` interface in `src/types.ts`
-4. Handle the category in `src/applier.ts` -> `applyDiff()`
-5. Add test in `src/__tests__/scanner.test.ts`
+2. Add the field to `Snapshot` interface in `src/types.ts`
+3. Add scan logic in `src/scanner.ts` -> `scanClaudeDir()`
+4. Add the category name to `FILE_CATEGORIES` in `src/differ.ts` so diffs include it
+5. Add the category to `fileCategories` in `src/git.ts` -> `writeConfigFiles()` and to `readSnapshotFromDir()` so the hub round-trips it
+6. Update the snapshot summary (counts + verbose log) in `src/cli.ts` -> `scan` command and in `stripContent()`
+7. Update README/docs in `src/git.ts` -> `generateHubReadme()` and the snapshot.yaml/registry.yaml writers
+8. Handle the category in `src/applier.ts` -> `applyDiff()` (file-based categories fall through to `applyFileEntry()` automatically)
+9. Add tests in `src/__tests__/scanner.test.ts`, and update `makeSnapshot()` helpers in `differ.test.ts` and `git.test.ts` so existing tests still type-check
+
+## Synced Single-File Surfaces
+
+Some configuration lives as a single file at the root of `~/.claude/` rather than a category directory. These are tracked as optional `FileEntry` fields on `Snapshot`:
+
+- `keybindings` — `~/.claude/keybindings.json`
+- `statuslineScript` — `~/.claude/statusline-command.sh` (referenced by `settings.statusLine`)
+
+Each single-file field needs explicit handling in `scanner.ts`, `differ.ts` (via the `diffSingleFile` helper), `git.ts` (write + read in the hub layout), and `cli.ts` (`stripContent` + scan summary). `applier.ts` reuses `applyFileEntry` because the diff entry's `relativePath` is the root-relative file name.
+
+## Scripts and Executable Bit
+
+The `scripts/` category holds hook implementations, helper executables, and shared library code that `settings.json` hooks invoke by absolute path. When applying file entries, `applyFileEntry()` detects a leading `#!` shebang and `chmod 0o755` the file so synced hooks remain executable on the target machine.

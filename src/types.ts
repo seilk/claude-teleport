@@ -45,7 +45,9 @@ export interface Snapshot {
   readonly globalDocs: readonly FileEntry[];
   readonly hooks: readonly HookEntry[];
   readonly mcp: readonly FileEntry[];
+  readonly scripts: readonly FileEntry[];
   readonly keybindings?: FileEntry;
+  readonly statuslineScript?: FileEntry;
 }
 
 export type DiffType = "added" | "removed" | "modified" | "unchanged";

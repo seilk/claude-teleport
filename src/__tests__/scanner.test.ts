@@ -173,4 +173,89 @@ describe("scanClaudeDir", () => {
     assert.ok(snapshot.machineId);
     assert.ok(snapshot.machineAlias);
   });
+
+  it("scans scripts directory recursively", async () => {
+    mkdirSync(join(mockClaudeDir, "scripts", "hooks"), { recursive: true });
+    mkdirSync(join(mockClaudeDir, "scripts", "lib"), { recursive: true });
+    writeFileSync(join(mockClaudeDir, "scripts", "hooks", "post-edit.js"), "#!/usr/bin/env node\nconsole.log('hi')");
+    writeFileSync(join(mockClaudeDir, "scripts", "hooks", "pre-bash.sh"), "#!/usr/bin/env bash\necho hi");
+    writeFileSync(join(mockClaudeDir, "scripts", "lib", "shared.js"), "export const x = 1;");
+    writeFileSync(join(mockClaudeDir, "scripts", "orchestrate.sh"), "#!/usr/bin/env bash\necho ok");
+
+    const snapshot = await scanClaudeDir(mockClaudeDir);
+
+    assert.equal(snapshot.scripts.length, 4);
+    assert.ok(snapshot.scripts.some((s) => s.relativePath === "scripts/hooks/post-edit.js"));
+    assert.ok(snapshot.scripts.some((s) => s.relativePath === "scripts/hooks/pre-bash.sh"));
+    assert.ok(snapshot.scripts.some((s) => s.relativePath === "scripts/lib/shared.js"));
+    assert.ok(snapshot.scripts.some((s) => s.relativePath === "scripts/orchestrate.sh"));
+  });
+
+  it("returns empty scripts when scripts directory is missing", async () => {
+    const snapshot = await scanClaudeDir(mockClaudeDir);
+    assert.equal(snapshot.scripts.length, 0);
+  });
+
+  it("scans hooks.json from canonical hooks/ subdirectory", async () => {
+    mkdirSync(join(mockClaudeDir, "hooks"), { recursive: true });
+    writeFileSync(
+      join(mockClaudeDir, "hooks", "hooks.json"),
+      JSON.stringify([
+        { name: "format-on-edit", event: "PostToolUse", command: "prettier --write" },
+      ]),
+    );
+
+    const snapshot = await scanClaudeDir(mockClaudeDir);
+
+    assert.equal(snapshot.hooks.length, 1);
+    assert.equal(snapshot.hooks[0].name, "format-on-edit");
+    assert.equal(snapshot.hooks[0].event, "PostToolUse");
+  });
+
+  it("falls back to legacy hooks.json at claude root", async () => {
+    writeFileSync(
+      join(mockClaudeDir, "hooks.json"),
+      JSON.stringify([{ name: "legacy", event: "Stop", command: "echo done" }]),
+    );
+
+    const snapshot = await scanClaudeDir(mockClaudeDir);
+
+    assert.equal(snapshot.hooks.length, 1);
+    assert.equal(snapshot.hooks[0].name, "legacy");
+  });
+
+  it("prefers hooks/hooks.json over legacy locations when both exist", async () => {
+    mkdirSync(join(mockClaudeDir, "hooks"), { recursive: true });
+    writeFileSync(
+      join(mockClaudeDir, "hooks", "hooks.json"),
+      JSON.stringify([{ name: "canonical", event: "Stop", command: "echo a" }]),
+    );
+    writeFileSync(
+      join(mockClaudeDir, "hooks.json"),
+      JSON.stringify([{ name: "legacy", event: "Stop", command: "echo b" }]),
+    );
+
+    const snapshot = await scanClaudeDir(mockClaudeDir);
+
+    assert.equal(snapshot.hooks.length, 1);
+    assert.equal(snapshot.hooks[0].name, "canonical");
+  });
+
+  it("scans statusline-command.sh when present", async () => {
+    writeFileSync(
+      join(mockClaudeDir, "statusline-command.sh"),
+      "#!/usr/bin/env bash\necho 'status'",
+    );
+
+    const snapshot = await scanClaudeDir(mockClaudeDir);
+
+    assert.ok(snapshot.statuslineScript);
+    assert.equal(snapshot.statuslineScript?.relativePath, "statusline-command.sh");
+    assert.match(snapshot.statuslineScript!.contentHash, /^[a-f0-9]{64}$/);
+  });
+
+  it("returns undefined statuslineScript when missing", async () => {
+    const snapshot = await scanClaudeDir(mockClaudeDir);
+    assert.equal(snapshot.statuslineScript, undefined);
+  });
 });

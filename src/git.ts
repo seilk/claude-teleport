@@ -135,7 +135,9 @@ function writeSnapshotYaml(snapshot: Snapshot, repoPath: string, machinePrefix: 
     `marketplaces: ${snapshot.marketplaces.length}`,
     `hooks: ${snapshot.hooks.length}`,
     `mcp: ${snapshot.mcp.length}`,
+    `scripts: ${snapshot.scripts.length}`,
     `keybindings: ${snapshot.keybindings ? 1 : 0}`,
+    `statuslineScript: ${snapshot.statuslineScript ? 1 : 0}`,
   ].join("\n");
   const targetDir = join(repoPath, machinePrefix);
   mkdirSync(targetDir, { recursive: true });
@@ -144,7 +146,7 @@ function writeSnapshotYaml(snapshot: Snapshot, repoPath: string, machinePrefix: 
 
 function writeConfigFiles(snapshot: Snapshot, repoPath: string, machinePrefix: string): void {
   const base = join(repoPath, machinePrefix);
-  const fileCategories = ["agents", "rules", "skills", "commands", "globalDocs", "mcp"] as const;
+  const fileCategories = ["agents", "rules", "skills", "commands", "globalDocs", "mcp", "scripts"] as const;
   for (const cat of fileCategories) {
     const entries = snapshot[cat] as readonly FileEntry[];
     for (const entry of entries) {
@@ -154,6 +156,13 @@ function writeConfigFiles(snapshot: Snapshot, repoPath: string, machinePrefix: s
         writeFileSync(targetPath, entry.content);
       }
     }
+  }
+
+  if (snapshot.statuslineScript?.content) {
+    writeFileSync(
+      join(base, snapshot.statuslineScript.relativePath),
+      snapshot.statuslineScript.content,
+    );
   }
 
   if (Object.keys(snapshot.settings).length > 0) {
@@ -199,6 +208,7 @@ function writeRegistryYaml(repoPath: string): void {
     const marketplacesMatch = content.match(/marketplaces:\s*(\d+)/);
     const hooksMatch = content.match(/hooks:\s*(\d+)/);
     const mcpMatch = content.match(/mcp:\s*(\d+)/);
+    const scriptsMatch = content.match(/scripts:\s*(\d+)/);
     entries.push([
       `  ${alias}:`,
       `    id: "${idMatch?.[1] ?? ""}"`,
@@ -213,6 +223,7 @@ function writeRegistryYaml(repoPath: string): void {
       `      marketplaces: ${marketplacesMatch?.[1] ?? "0"}`,
       `      hooks: ${hooksMatch?.[1] ?? "0"}`,
       `      mcp: ${mcpMatch?.[1] ?? "0"}`,
+      `      scripts: ${scriptsMatch?.[1] ?? "0"}`,
     ].join("\n"));
   }
 
@@ -249,6 +260,8 @@ function generateHubReadme(username: string, isPublic: boolean): string {
     "  - `skills/` — SKILL.md files and supporting resources",
     "  - `commands/` — Custom command definitions",
     "  - `mcp-configs/` — MCP server configurations",
+    "  - `scripts/` — Hook scripts and helper executables referenced by `settings.json`",
+    "  - `statusline-command.sh` — Optional statusline shell script",
     "  - `plugins/` — Plugin and marketplace metadata",
     "  - `settings.json` — Claude Code settings (credentials excluded)",
     "  - `CLAUDE.md` / `AGENTS.md` — Global instruction files",
@@ -516,6 +529,19 @@ function readSnapshotFromDir(machineDir: string, branchName: string): Snapshot |
   const skills = scanDirectoryToFileEntries(machineDir, CATEGORY_PATHS.skills, "skills");
   const commands = scanDirectoryToFileEntries(machineDir, CATEGORY_PATHS.commands, "commands");
   const mcp = scanDirectoryToFileEntries(machineDir, CATEGORY_PATHS.mcp, "mcp-configs");
+  const scripts = scanDirectoryToFileEntries(machineDir, CATEGORY_PATHS.scripts, "scripts");
+
+  // Read statusline script (single file at root)
+  let statuslineScript: FileEntry | undefined;
+  const statuslinePath = join(machineDir, "statusline-command.sh");
+  if (existsSync(statuslinePath)) {
+    const content = readFileSync(statuslinePath, "utf-8");
+    statuslineScript = {
+      relativePath: "statusline-command.sh",
+      contentHash: hashContent(content),
+      content,
+    };
+  }
 
   // Read global docs
   const globalDocs: FileEntry[] = [];
@@ -618,6 +644,8 @@ function readSnapshotFromDir(machineDir: string, branchName: string): Snapshot |
     globalDocs,
     hooks,
     mcp,
+    scripts,
+    statuslineScript,
   };
 }
 

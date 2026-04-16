@@ -18,6 +18,7 @@ function makeSnapshot(overrides?: Partial<Snapshot>): Snapshot {
     globalDocs: [],
     hooks: [],
     mcp: [],
+    scripts: [],
     ...overrides,
   };
 }

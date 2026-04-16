@@ -19,8 +19,11 @@ export const CATEGORY_PATHS: Readonly<Record<string, string>> = {
   skills: "skills",
   commands: "commands",
   mcp: "mcp-configs",
+  scripts: "scripts",
   globalDocs: "",
 } as const;
+
+export const STATUSLINE_SCRIPT_FILE = "statusline-command.sh";
 
 export const VALID_CATEGORIES = Object.keys(CATEGORY_PATHS) as readonly string[];
 

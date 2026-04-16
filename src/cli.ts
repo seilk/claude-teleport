@@ -76,8 +76,12 @@ function stripContent(snapshot: Snapshot): Snapshot {
     commands: stripFileContent(snapshot.commands),
     globalDocs: stripFileContent(snapshot.globalDocs),
     mcp: stripFileContent(snapshot.mcp),
+    scripts: stripFileContent(snapshot.scripts),
     keybindings: snapshot.keybindings
       ? { relativePath: snapshot.keybindings.relativePath, contentHash: snapshot.keybindings.contentHash }
+      : undefined,
+    statuslineScript: snapshot.statuslineScript
+      ? { relativePath: snapshot.statuslineScript.relativePath, contentHash: snapshot.statuslineScript.contentHash }
       : undefined,
   };
 }
@@ -122,6 +126,7 @@ async function main(): Promise<void> {
           `commands: ${snapshot.commands.length}`,
           `globalDocs: ${snapshot.globalDocs.length}`,
           `mcp: ${snapshot.mcp.length}`,
+          `scripts: ${snapshot.scripts.length}`,
           `plugins: ${snapshot.plugins.length}`,
         ];
         stderr(`Scan complete: ${counts.join(", ")}`);
@@ -138,7 +143,9 @@ async function main(): Promise<void> {
         globalDocs: snapshot.globalDocs.length,
         hooks: snapshot.hooks.length,
         mcp: snapshot.mcp.length,
+        scripts: snapshot.scripts.length,
         keybindings: snapshot.keybindings ? 1 : 0,
+        statuslineScript: snapshot.statuslineScript ? 1 : 0,
       };
       const outputPath = flags["output"];
       if (outputPath) {

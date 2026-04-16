@@ -56,12 +56,12 @@ describe("CLI", () => {
       teleportVersion: "0.1.0", machineId: "a", machineAlias: "a",
       plugins: [], marketplaces: [],
       agents: [{ relativePath: "agents/new.md", contentHash: "abc", content: "new" }],
-      rules: [], skills: [], commands: [], settings: {}, globalDocs: [], hooks: [], mcp: [],
+      rules: [], skills: [], commands: [], settings: {}, globalDocs: [], hooks: [], mcp: [], scripts: [],
     }));
     writeFileSync(targetFile, JSON.stringify({
       teleportVersion: "0.1.0", machineId: "b", machineAlias: "b",
       plugins: [], marketplaces: [],
-      agents: [], rules: [], skills: [], commands: [], settings: {}, globalDocs: [], hooks: [], mcp: [],
+      agents: [], rules: [], skills: [], commands: [], settings: {}, globalDocs: [], hooks: [], mcp: [], scripts: [],
     }));
 
     run(`diff --source-file ${sourceFile} --target-file ${targetFile} --output ${outputFile}`);
@@ -75,7 +75,7 @@ describe("CLI", () => {
       teleportVersion: "0.1.0", machineId: "a", machineAlias: "a",
       plugins: [], marketplaces: [],
       agents: [{ relativePath: "agents/bad.md", contentHash: "x", content: "key=AKIAIOSFODNN7EXAMPLE" }],
-      rules: [], skills: [], commands: [], settings: {}, globalDocs: [], hooks: [], mcp: [],
+      rules: [], skills: [], commands: [], settings: {}, globalDocs: [], hooks: [], mcp: [], scripts: [],
     }));
 
     const outputFile = join(tmpDir, "secrets.json");

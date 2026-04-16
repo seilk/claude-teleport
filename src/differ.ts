@@ -2,7 +2,7 @@ import type { Snapshot, Diff, DiffEntry, DiffSummary, FileEntry, PluginEntry, Ma
 import { isCredentialKey } from "./secrets.js";
 
 const FILE_CATEGORIES = [
-  "agents", "rules", "skills", "commands", "globalDocs", "mcp",
+  "agents", "rules", "skills", "commands", "globalDocs", "mcp", "scripts",
 ] as const;
 
 function diffFileEntries(
@@ -224,31 +224,56 @@ export function diff(source: Snapshot, target: Snapshot): Diff {
   merge(diffSettings(source.settings, target.settings));
 
   // Diff keybindings
-  if (source.keybindings && !target.keybindings) {
-    added.push({
-      category: "keybindings",
-      relativePath: "keybindings.json",
-      type: "added",
-      sourceContent: source.keybindings.content,
-    });
-  } else if (!source.keybindings && target.keybindings) {
-    removed.push({
-      category: "keybindings",
-      relativePath: "keybindings.json",
-      type: "removed",
-      targetContent: target.keybindings.content,
-    });
-  } else if (source.keybindings && target.keybindings && source.keybindings.contentHash !== target.keybindings.contentHash) {
-    modified.push({
-      category: "keybindings",
-      relativePath: "keybindings.json",
-      type: "modified",
-      sourceContent: source.keybindings.content,
-      targetContent: target.keybindings.content,
-    });
-  } else if (source.keybindings && target.keybindings) {
-    unchanged.push({ category: "keybindings", relativePath: "keybindings.json", type: "unchanged" });
-  }
+  diffSingleFile(
+    source.keybindings,
+    target.keybindings,
+    "keybindings",
+    "keybindings.json",
+    { added, removed, modified, unchanged },
+  );
+
+  // Diff statusline script
+  diffSingleFile(
+    source.statuslineScript,
+    target.statuslineScript,
+    "statuslineScript",
+    source.statuslineScript?.relativePath ?? target.statuslineScript?.relativePath ?? "statusline-command.sh",
+    { added, removed, modified, unchanged },
+  );
 
   return { added, removed, modified, unchanged, summary: buildSummary(added, modified, removed) };
+}
+
+function diffSingleFile(
+  source: FileEntry | undefined,
+  target: FileEntry | undefined,
+  category: string,
+  relativePath: string,
+  buckets: { added: DiffEntry[]; removed: DiffEntry[]; modified: DiffEntry[]; unchanged: DiffEntry[] },
+): void {
+  if (source && !target) {
+    buckets.added.push({
+      category,
+      relativePath,
+      type: "added",
+      sourceContent: source.content,
+    });
+  } else if (!source && target) {
+    buckets.removed.push({
+      category,
+      relativePath,
+      type: "removed",
+      targetContent: target.content,
+    });
+  } else if (source && target && source.contentHash !== target.contentHash) {
+    buckets.modified.push({
+      category,
+      relativePath,
+      type: "modified",
+      sourceContent: source.content,
+      targetContent: target.content,
+    });
+  } else if (source && target) {
+    buckets.unchanged.push({ category, relativePath, type: "unchanged" });
+  }
 }
