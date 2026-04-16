@@ -1,4 +1,4 @@
-import { writeFileSync, readFileSync, existsSync, mkdirSync } from "node:fs";
+import { writeFileSync, readFileSync, existsSync, mkdirSync, chmodSync } from "node:fs";
 import { join, dirname } from "node:path";
 import type { DiffEntry, ApplyResult, ApplyItemResult, PluginEntry, Marketplace } from "./types.js";
 
@@ -9,6 +9,11 @@ function ensureDir(filePath: string): void {
   }
 }
 
+function isExecutableScript(content: string): boolean {
+  // A shebang on the first line indicates an executable script (.sh, .py, .js, etc.).
+  return content.startsWith("#!");
+}
+
 function applyFileEntry(entry: DiffEntry, claudeDir: string): ApplyItemResult {
   if (!entry.sourceContent) {
     return { path: entry.relativePath, status: "error", error: "No source content" };
@@ -16,6 +21,14 @@ function applyFileEntry(entry: DiffEntry, claudeDir: string): ApplyItemResult {
   const targetPath = join(claudeDir, entry.relativePath);
   ensureDir(targetPath);
   writeFileSync(targetPath, entry.sourceContent);
+  // Restore the executable bit for scripts so synced hooks run on the target machine.
+  if (isExecutableScript(entry.sourceContent)) {
+    try {
+      chmodSync(targetPath, 0o755);
+    } catch {
+      // Permission errors should not abort the apply; the file is already written.
+    }
+  }
   return { path: entry.relativePath, status: "ok" };
 }
 

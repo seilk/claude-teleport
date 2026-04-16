@@ -50,6 +50,7 @@ const COMMAND_HELP: Readonly<Record<string, string>> = {
   "backup-restore": "Restore from a backup.\n  Usage: teleport backup-restore --timestamp <ts>",
   "secret-scan": "Scan snapshot for secrets.\n  Usage: teleport secret-scan --snapshot-file <file> [--output <file>]",
   "rce-scan": "Scan a file for RCE patterns.\n  Usage: teleport rce-scan --file <path>",
+  "rce-scan-snapshot": "Scan all executable-ish content in a snapshot (scripts, statusline, hooks) for RCE patterns. Call before apply when pulling from untrusted sources.\n  Usage: teleport rce-scan-snapshot --snapshot-file <file> [--output <file>]",
   "hub-init": "Create or clone the private hub repo.\n  Usage: teleport hub-init [--clone-to <path>]",
   "hub-push": "Push snapshot to hub.\n  Usage: teleport hub-push --hub-path <path> --machine <alias> --snapshot-file <file>",
   "hub-machines": "List machines in the hub.\n  Usage: teleport hub-machines --hub-path <path>",
@@ -76,8 +77,12 @@ function stripContent(snapshot: Snapshot): Snapshot {
     commands: stripFileContent(snapshot.commands),
     globalDocs: stripFileContent(snapshot.globalDocs),
     mcp: stripFileContent(snapshot.mcp),
+    scripts: stripFileContent(snapshot.scripts),
     keybindings: snapshot.keybindings
       ? { relativePath: snapshot.keybindings.relativePath, contentHash: snapshot.keybindings.contentHash }
+      : undefined,
+    statuslineScript: snapshot.statuslineScript
+      ? { relativePath: snapshot.statuslineScript.relativePath, contentHash: snapshot.statuslineScript.contentHash }
       : undefined,
   };
 }
@@ -122,6 +127,8 @@ async function main(): Promise<void> {
           `commands: ${snapshot.commands.length}`,
           `globalDocs: ${snapshot.globalDocs.length}`,
           `mcp: ${snapshot.mcp.length}`,
+          `scripts: ${snapshot.scripts.length}`,
+          `statuslineScript: ${snapshot.statuslineScript ? 1 : 0}`,
           `plugins: ${snapshot.plugins.length}`,
         ];
         stderr(`Scan complete: ${counts.join(", ")}`);
@@ -138,7 +145,9 @@ async function main(): Promise<void> {
         globalDocs: snapshot.globalDocs.length,
         hooks: snapshot.hooks.length,
         mcp: snapshot.mcp.length,
+        scripts: snapshot.scripts.length,
         keybindings: snapshot.keybindings ? 1 : 0,
+        statuslineScript: snapshot.statuslineScript ? 1 : 0,
       };
       const outputPath = flags["output"];
       if (outputPath) {
@@ -252,14 +261,17 @@ async function main(): Promise<void> {
         break;
       }
       const snapshot = readJsonFile<Snapshot>(snapshotFilePath);
-      const allFiles = [
-        ...snapshot.agents,
-        ...snapshot.rules,
-        ...snapshot.skills,
-        ...snapshot.commands,
-        ...snapshot.globalDocs,
-        ...snapshot.mcp,
+      const allFiles: FileEntry[] = [
+        ...(snapshot.agents ?? []),
+        ...(snapshot.rules ?? []),
+        ...(snapshot.skills ?? []),
+        ...(snapshot.commands ?? []),
+        ...(snapshot.globalDocs ?? []),
+        ...(snapshot.mcp ?? []),
+        ...(snapshot.scripts ?? []),
       ];
+      if (snapshot.statuslineScript) allFiles.push(snapshot.statuslineScript);
+      if (snapshot.keybindings) allFiles.push(snapshot.keybindings);
       const findings = scanForSecrets(allFiles);
       const envelope = { status: "ok" as const, findings, count: findings.length };
       const outputPath = flags["output"];
@@ -282,6 +294,46 @@ async function main(): Promise<void> {
       const content = readFileSync(filePath, "utf-8");
       const findings = scanForRcePatterns(content);
       output({ file: filePath, findings });
+      break;
+    }
+
+    case "rce-scan-snapshot": {
+      const snapshotFilePath = flags["snapshot-file"];
+      if (!snapshotFilePath) {
+        output({ status: "error", error: "Missing required flag: --snapshot-file" });
+        process.exitCode = 1;
+        break;
+      }
+      const snapshot = readJsonFile<Snapshot>(snapshotFilePath);
+      // Executable-ish surfaces: scripts (always run), statusline script, and any
+      // hook commands declared inline in hooks.json. These are the apply-time RCE
+      // risk vectors called out in CLAUDE.md safety rules.
+      const riskyEntries: FileEntry[] = [
+        ...(snapshot.scripts ?? []),
+      ];
+      if (snapshot.statuslineScript) riskyEntries.push(snapshot.statuslineScript);
+      const entryFindings = riskyEntries
+        .filter((e) => e.content)
+        .map((e) => ({
+          file: e.relativePath,
+          findings: scanForRcePatterns(e.content ?? ""),
+        }))
+        .filter((r) => r.findings.length > 0);
+      const hookFindings = (snapshot.hooks ?? [])
+        .map((h) => ({
+          file: `hooks.json#${h.name}`,
+          findings: scanForRcePatterns(h.command ?? ""),
+        }))
+        .filter((r) => r.findings.length > 0);
+      const combined = [...entryFindings, ...hookFindings];
+      const envelope = { status: "ok" as const, results: combined, count: combined.length };
+      const outputPath = flags["output"];
+      if (outputPath) {
+        writeFileSync(outputPath, JSON.stringify(envelope, null, 2));
+        output({ status: "ok", count: combined.length, path: outputPath });
+      } else {
+        output(envelope);
+      }
       break;
     }
 
@@ -455,8 +507,8 @@ async function main(): Promise<void> {
     default:
       output({ status: "error", error: `Unknown command: ${command}`, available: [
         "context", "scan", "diff", "apply", "backup", "backup-list",
-        "backup-restore", "secret-scan", "rce-scan", "hub-init",
-        "hub-push", "hub-machines", "hub-read-branch", "hub-read-main",
+        "backup-restore", "secret-scan", "rce-scan", "rce-scan-snapshot",
+        "hub-init", "hub-push", "hub-machines", "hub-read-branch", "hub-read-main",
         "hub-check-public", "hub-read-public", "hub-push-public",
       ]});
       process.exitCode = 1;

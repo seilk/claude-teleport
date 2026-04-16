@@ -5,6 +5,7 @@ import {
   CATEGORY_PATHS,
   GLOBAL_DOC_FILES,
   CREDENTIAL_KEYS,
+  STATUSLINE_SCRIPT_FILE,
 } from "./constants.js";
 import { getMachineId } from "./machine.js";
 import type { Snapshot, FileEntry, PluginEntry, Marketplace, HookEntry } from "./types.js";
@@ -175,12 +176,15 @@ function scanGlobalDocs(baseDir: string): FileEntry[] {
 }
 
 function scanHooks(baseDir: string): HookEntry[] {
-  // Check hooks.json in claude dir, with .cursor/hooks.json as fallback
-  let hooksJsonPath = join(baseDir, "hooks.json");
-  if (!existsSync(hooksJsonPath)) {
-    hooksJsonPath = join(baseDir, ".cursor", "hooks.json");
-  }
-  if (!existsSync(hooksJsonPath)) return [];
+  // Canonical location is ~/.claude/hooks/hooks.json. Fall back to
+  // ~/.claude/hooks.json (legacy) and ~/.claude/.cursor/hooks.json (Cursor).
+  const candidatePaths = [
+    join(baseDir, "hooks", "hooks.json"),
+    join(baseDir, "hooks.json"),
+    join(baseDir, ".cursor", "hooks.json"),
+  ];
+  const hooksJsonPath = candidatePaths.find((p) => existsSync(p));
+  if (!hooksJsonPath) return [];
   try {
     const data = JSON.parse(readFileSync(hooksJsonPath, "utf-8"));
     if (!Array.isArray(data)) return [];
@@ -206,6 +210,21 @@ function scanKeybindings(baseDir: string): FileEntry | undefined {
   }
 }
 
+function scanStatuslineScript(baseDir: string): FileEntry | undefined {
+  const filePath = join(baseDir, STATUSLINE_SCRIPT_FILE);
+  if (!existsSync(filePath) || !statSync(filePath).isFile()) return undefined;
+  try {
+    const content = readFileSync(filePath, "utf-8");
+    return {
+      relativePath: STATUSLINE_SCRIPT_FILE,
+      contentHash: hashContent(content),
+      content,
+    };
+  } catch {
+    return undefined;
+  }
+}
+
 export async function scanClaudeDir(claudeDir: string): Promise<Snapshot> {
   const machine = getMachineId();
 
@@ -223,6 +242,8 @@ export async function scanClaudeDir(claudeDir: string): Promise<Snapshot> {
     globalDocs: scanGlobalDocs(claudeDir),
     hooks: scanHooks(claudeDir),
     mcp: scanDirectoryToFileEntries(claudeDir, CATEGORY_PATHS.mcp, "mcp"),
+    scripts: scanDirectoryToFileEntries(claudeDir, CATEGORY_PATHS.scripts, "scripts"),
     keybindings: scanKeybindings(claudeDir),
+    statuslineScript: scanStatuslineScript(claudeDir),
   };
 }

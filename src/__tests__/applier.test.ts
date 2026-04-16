@@ -1,6 +1,6 @@
 import { describe, it, beforeEach, afterEach } from "node:test";
 import assert from "node:assert/strict";
-import { mkdtempSync, writeFileSync, readFileSync, mkdirSync, rmSync, existsSync } from "node:fs";
+import { mkdtempSync, writeFileSync, readFileSync, mkdirSync, rmSync, existsSync, statSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { applyDiff } from "../applier.js";
@@ -165,5 +165,38 @@ describe("applyDiff", () => {
     const result = await applyDiff(selections, mockClaudeDir);
     assert.equal(result.applied[0].status, "ok");
     assert.ok(existsSync(join(mockClaudeDir, "rules", "common", "coding-style.md")));
+  });
+
+  it("chmods scripts with a shebang to 0o755", { skip: process.platform === "win32" }, async () => {
+    const selections: DiffEntry[] = [
+      {
+        category: "scripts",
+        relativePath: "scripts/hooks/post-edit.sh",
+        type: "added",
+        sourceContent: "#!/usr/bin/env bash\necho hi",
+      },
+    ];
+    const result = await applyDiff(selections, mockClaudeDir);
+    assert.equal(result.applied[0].status, "ok");
+    const targetPath = join(mockClaudeDir, "scripts", "hooks", "post-edit.sh");
+    assert.ok(existsSync(targetPath));
+    // Check owner-executable bit is set (portable across most unixes).
+    const mode = statSync(targetPath).mode & 0o777;
+    assert.ok((mode & 0o100) !== 0, `expected owner-executable bit, got mode=${mode.toString(8)}`);
+  });
+
+  it("does not chmod non-shebang files", { skip: process.platform === "win32" }, async () => {
+    const selections: DiffEntry[] = [
+      {
+        category: "rules",
+        relativePath: "rules/plain.md",
+        type: "added",
+        sourceContent: "# Just markdown, no shebang\n",
+      },
+    ];
+    await applyDiff(selections, mockClaudeDir);
+    const targetPath = join(mockClaudeDir, "rules", "plain.md");
+    const mode = statSync(targetPath).mode & 0o777;
+    assert.equal(mode & 0o100, 0, `expected no owner-executable bit, got mode=${mode.toString(8)}`);
   });
 });

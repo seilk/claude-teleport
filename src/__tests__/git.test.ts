@@ -22,6 +22,7 @@ function makeSnapshot(overrides?: Partial<Snapshot>): Snapshot {
     globalDocs: [{ relativePath: "CLAUDE.md", contentHash: "def", content: "# Config" }],
     hooks: [],
     mcp: [],
+    scripts: [],
     ...overrides,
   };
 }

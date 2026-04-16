@@ -58,10 +58,13 @@ describe("types", () => {
       globalDocs: [],
       hooks: [],
       mcp: [],
+      scripts: [],
     };
     assert.equal(snapshot.teleportVersion, "0.1.0");
     assert.equal(snapshot.machineAlias, "macbook-pro");
     assert.equal(snapshot.keybindings, undefined);
+    assert.equal(snapshot.statuslineScript, undefined);
+    assert.equal(snapshot.scripts.length, 0);
   });
 
   it("DiffEntry supports all diff types", () => {
