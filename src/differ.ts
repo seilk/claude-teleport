@@ -214,8 +214,9 @@ export function diff(source: Snapshot, target: Snapshot): Diff {
   };
 
   for (const cat of FILE_CATEGORIES) {
-    const sourceEntries = source[cat] as readonly FileEntry[];
-    const targetEntries = target[cat] as readonly FileEntry[];
+    // Tolerate older snapshots (pre-scripts release) that lack a field entirely.
+    const sourceEntries = (source[cat] ?? []) as readonly FileEntry[];
+    const targetEntries = (target[cat] ?? []) as readonly FileEntry[];
     merge(diffFileEntries(sourceEntries, targetEntries, cat));
   }
 

@@ -208,7 +208,8 @@ function writeRegistryYaml(repoPath: string): void {
     const marketplacesMatch = content.match(/marketplaces:\s*(\d+)/);
     const hooksMatch = content.match(/hooks:\s*(\d+)/);
     const mcpMatch = content.match(/mcp:\s*(\d+)/);
-    const scriptsMatch = content.match(/scripts:\s*(\d+)/);
+    const scriptsMatch = content.match(/^scripts:\s*(\d+)/m);
+    const statuslineMatch = content.match(/^statuslineScript:\s*(\d+)/m);
     entries.push([
       `  ${alias}:`,
       `    id: "${idMatch?.[1] ?? ""}"`,
@@ -224,6 +225,7 @@ function writeRegistryYaml(repoPath: string): void {
       `      hooks: ${hooksMatch?.[1] ?? "0"}`,
       `      mcp: ${mcpMatch?.[1] ?? "0"}`,
       `      scripts: ${scriptsMatch?.[1] ?? "0"}`,
+      `      statuslineScript: ${statuslineMatch?.[1] ?? "0"}`,
     ].join("\n"));
   }
 
