@@ -12,17 +12,18 @@ Sync your Claude Code environment (plugins, skills, agents, rules, hooks, settin
 
 - `/teleport-init` — First-time setup: create private hub repo, scan and export your environment
 - `/teleport-pull` — Pull configs from your hub to this machine
-- `/teleport-push` — Push local changes to your hub
-- `/teleport-update` — Update already-pushed private/public repos with local changes
+- `/teleport-update` — Push unpushed local changes to your private hub (and optionally the public repo)
 - `/teleport-share` — Publish safe configs to a public repo for others
 - `/teleport-from <username>` — Import configs from another user's public repo
+- `/teleport-push` — Deprecated alias for `/teleport-update`; retained for backward compatibility
 
 Use `AskUserQuestion` (single-select) to ask which command to run. Options:
 - **teleport-init** — "First-time setup: create hub repo, scan and export environment"
 - **teleport-pull** — "Pull configs from your hub to this machine"
-- **teleport-push** — "Push local changes to your hub"
-- **teleport-update** — "Update already-pushed private/public repos with unpushed local changes"
+- **teleport-update** — "Push unpushed local changes to private hub (and optionally public repo)"
 - **teleport-share** — "Publish safe configs to a public repo for others"
 - **teleport-from** — "Import configs from another user's public repo"
 
-Then invoke the corresponding skill.
+Then invoke the corresponding skill. Do not list `teleport-push` as a choice —
+it is kept only as a deprecation alias for existing muscle memory and will
+route to `teleport-update` automatically when called directly.

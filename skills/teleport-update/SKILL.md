@@ -8,7 +8,7 @@ allowed-tools: [Bash, Read, Write, AskUserQuestion]
 
 Detect and push local changes that haven't been synced to your already-pushed `claude-teleport-private` or `claude-teleport-public` repos.
 
-Unlike `/teleport-push` (full push to private) or `/teleport-share` (curate for public), this command focuses on **incremental updates** — finding only what changed locally since the last push and selectively syncing it to one or both repos.
+This is the canonical push skill: it finds what changed locally since the last push and selectively syncs the diff to the private hub, the public repo, or both. The older `/teleport-push` skill is a deprecated alias that forwards here; `/teleport-share` remains the curation-focused flow for standing up or refreshing the public repo.
 
 ## Steps
 

@@ -146,10 +146,10 @@ Every operation involving external content must follow:
 Located in `skills/`:
 - `teleport-init` — first-time setup, creates private hub
 - `teleport-pull` — pull from hub to local
-- `teleport-push` — push local to hub
-- `teleport-update` — incremental sync (only unpushed changes)
-- `teleport-share` — publish to public repo
+- `teleport-update` — canonical push flow: incremental sync of unpushed changes to private hub and/or public repo
+- `teleport-share` — publish/curate to public repo
 - `teleport-from` — import from another user's public repo
+- `teleport-push` — **deprecated** alias that forwards to `teleport-update` via the `Skill` tool; retained for backward compatibility and scripted callers
 - `teleport` — top-level dispatcher
 
 ## Adding a New Synced Category
