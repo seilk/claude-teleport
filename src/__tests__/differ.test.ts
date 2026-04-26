@@ -150,6 +150,34 @@ describe("diff", () => {
     assert.ok(result.modified.some((e) => e.relativePath.includes("theme")));
   });
 
+  it("stores serialized value in sourceContent for added settings", () => {
+    const source = makeSnapshot({
+      settings: { theme: "dark", fastMode: true, count: 42, obj: { a: 1 } },
+    });
+    const target = makeSnapshot({ settings: {} });
+    const result = diff(source, target);
+    for (const key of ["theme", "fastMode", "count", "obj"]) {
+      const added = result.added.find((e) => e.relativePath === `settings/${key}`);
+      assert.ok(added, `missing added entry for ${key}`);
+      assert.ok(added.sourceContent !== undefined, `sourceContent missing for ${key}`);
+      assert.deepEqual(JSON.parse(added.sourceContent), source.settings[key]);
+    }
+  });
+
+  it("stores serialized value in targetContent for removed settings", () => {
+    const source = makeSnapshot({ settings: {} });
+    const target = makeSnapshot({
+      settings: { theme: "light", fastMode: false },
+    });
+    const result = diff(source, target);
+    for (const key of ["theme", "fastMode"]) {
+      const removed = result.removed.find((e) => e.relativePath === `settings/${key}`);
+      assert.ok(removed, `missing removed entry for ${key}`);
+      assert.ok(removed.targetContent !== undefined, `targetContent missing for ${key}`);
+      assert.deepEqual(JSON.parse(removed.targetContent), target.settings[key]);
+    }
+  });
+
   it("marks auth-related settings as high risk", () => {
     const source = makeSnapshot({
       settings: { apiKey: "new-key" },
