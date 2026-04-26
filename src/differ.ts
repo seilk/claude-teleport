@@ -160,9 +160,21 @@ function diffSettings(
     const path = `settings/${key}`;
 
     if (inSource && !inTarget) {
-      added.push({ category: "settings", relativePath: path, type: "added", riskLevel });
+      added.push({
+        category: "settings",
+        relativePath: path,
+        type: "added",
+        sourceContent: JSON.stringify(source[key]),
+        riskLevel,
+      });
     } else if (!inSource && inTarget) {
-      removed.push({ category: "settings", relativePath: path, type: "removed", riskLevel });
+      removed.push({
+        category: "settings",
+        relativePath: path,
+        type: "removed",
+        targetContent: JSON.stringify(target[key]),
+        riskLevel,
+      });
     } else if (JSON.stringify(source[key]) !== JSON.stringify(target[key])) {
       modified.push({
         category: "settings",
