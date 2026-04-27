@@ -33,13 +33,17 @@ function applySettingsEntry(entry, claudeDir) {
     const existing = existsSync(settingsPath)
         ? JSON.parse(readFileSync(settingsPath, "utf-8"))
         : {};
-    // Extract key name from "settings/keyName"
     const key = entry.relativePath.replace("settings/", "");
-    try {
-        existing[key] = JSON.parse(entry.sourceContent ?? "null");
+    if (entry.type === "removed") {
+        delete existing[key];
     }
-    catch {
-        existing[key] = entry.sourceContent;
+    else {
+        try {
+            existing[key] = JSON.parse(entry.sourceContent ?? "null");
+        }
+        catch {
+            existing[key] = entry.sourceContent;
+        }
     }
     writeFileSync(settingsPath, JSON.stringify(existing, null, 2));
     return { path: entry.relativePath, status: "ok" };

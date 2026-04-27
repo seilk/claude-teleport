@@ -38,12 +38,16 @@ function applySettingsEntry(entry: DiffEntry, claudeDir: string): ApplyItemResul
     ? JSON.parse(readFileSync(settingsPath, "utf-8"))
     : {};
 
-  // Extract key name from "settings/keyName"
   const key = entry.relativePath.replace("settings/", "");
-  try {
-    existing[key] = JSON.parse(entry.sourceContent ?? "null");
-  } catch {
-    existing[key] = entry.sourceContent;
+
+  if (entry.type === "removed") {
+    delete existing[key];
+  } else {
+    try {
+      existing[key] = JSON.parse(entry.sourceContent ?? "null");
+    } catch {
+      existing[key] = entry.sourceContent;
+    }
   }
 
   writeFileSync(settingsPath, JSON.stringify(existing, null, 2));
