@@ -76,6 +76,26 @@ describe("applyDiff", () => {
     assert.equal(settings.existing, "value");
   });
 
+  it("deletes settings key when applying a removed entry", async () => {
+    writeFileSync(
+      join(mockClaudeDir, "settings.json"),
+      JSON.stringify({ theme: "dark", keep: "yes" })
+    );
+    const selections: DiffEntry[] = [
+      {
+        category: "settings",
+        relativePath: "settings/theme",
+        type: "removed",
+        targetContent: JSON.stringify("dark"),
+      },
+    ];
+    const result = await applyDiff(selections, mockClaudeDir);
+    assert.ok(result.applied.every((a) => a.status === "ok"));
+    const settings = JSON.parse(readFileSync(join(mockClaudeDir, "settings.json"), "utf-8"));
+    assert.ok(!("theme" in settings), "theme should be deleted, not nulled");
+    assert.equal(settings.keep, "yes");
+  });
+
   it("generates plugin install instructions with CLI command", async () => {
     const plugin = { name: "superpowers", marketplace: "claude-plugins-official", version: "5.0.7", enabled: true };
     const selections: DiffEntry[] = [
