@@ -14,5 +14,5 @@ export declare const SECRET_PATTERNS: ReadonlyArray<{
     readonly regex: RegExp;
     readonly severity: "critical" | "high" | "medium";
 }>;
-export declare const RCE_PATTERNS: readonly ["curl ", "wget ", "eval(", "exec(", "child_process", "rm -rf", "sudo ", "chmod ", "> /dev/", "| sh", "| bash", "| zsh"];
+export declare const RCE_PATTERNS: readonly ["curl ", "wget ", "eval(", "exec(", "child_process", "rm -rf", "sudo ", "chmod ", "> /dev/", "| sh", "| bash", "| zsh", "node -e", "node --eval", "python -c", "python3 -c", "perl -e", "ruby -e", "base64 -d", "base64 --decode", "/dev/tcp", "bash -i", "nc ", "ncat ", "osascript", "powershell", "-enc "];
 export declare const CREDENTIAL_KEYS: readonly ["credentials", "apiKey", "api_key", "secret", "password", "token", "oauth", "auth"];

@@ -42,6 +42,58 @@ export function isCredentialKey(key) {
     const lower = key.toLowerCase();
     return CREDENTIAL_KEYS.some((ck) => lower.includes(ck.toLowerCase()));
 }
+// Recursively drop credential-keyed values at ANY depth (e.g. a secret hiding in
+// mcpServers.foo.env.OPENAI_API_KEY), returning a new structure. Top-level-only
+// filtering let nested secrets reach the hub.
+export function redactCredentialsDeep(value) {
+    if (Array.isArray(value))
+        return value.map(redactCredentialsDeep);
+    if (value && typeof value === "object") {
+        const out = {};
+        for (const [key, child] of Object.entries(value)) {
+            if (isCredentialKey(key))
+                continue;
+            out[key] = redactCredentialsDeep(child);
+        }
+        return out;
+    }
+    return value;
+}
+// Flatten every committed surface of a snapshot into scannable text entries,
+// INCLUDING settings values and hook commands — surfaces that the old file-only
+// scan never inspected, so a secret pasted into settings.json was published
+// unscanned.
+export function snapshotScannableEntries(snapshot) {
+    const entries = [
+        ...(snapshot.agents ?? []),
+        ...(snapshot.rules ?? []),
+        ...(snapshot.skills ?? []),
+        ...(snapshot.commands ?? []),
+        ...(snapshot.globalDocs ?? []),
+        ...(snapshot.mcp ?? []),
+        ...(snapshot.scripts ?? []),
+    ];
+    if (snapshot.statuslineScript)
+        entries.push(snapshot.statuslineScript);
+    if (snapshot.keybindings)
+        entries.push(snapshot.keybindings);
+    if (snapshot.settings && Object.keys(snapshot.settings).length > 0) {
+        entries.push({
+            relativePath: "settings.json",
+            contentHash: "",
+            content: JSON.stringify(snapshot.settings, null, 2),
+        });
+    }
+    for (const hook of snapshot.hooks ?? []) {
+        if (hook.command) {
+            entries.push({ relativePath: `hooks.json#${hook.name}`, contentHash: "", content: hook.command });
+        }
+    }
+    return entries;
+}
+export function scanSnapshotForSecrets(snapshot) {
+    return scanForSecrets(snapshotScannableEntries(snapshot));
+}
 export function loadIgnorePatterns(filePath) {
     if (!existsSync(filePath))
         return [];

@@ -1,6 +1,6 @@
 import { readFileSync, existsSync } from "node:fs";
 import { SECRET_PATTERNS, RCE_PATTERNS, CREDENTIAL_KEYS } from "./constants.js";
-import type { FileEntry, SecretFinding } from "./types.js";
+import type { FileEntry, SecretFinding, Snapshot } from "./types.js";
 
 export function scanForSecrets(entries: readonly FileEntry[]): SecretFinding[] {
   const findings: SecretFinding[] = [];
@@ -49,6 +49,57 @@ export function scanForRcePatterns(content: string): string[] {
 export function isCredentialKey(key: string): boolean {
   const lower = key.toLowerCase();
   return CREDENTIAL_KEYS.some((ck) => lower.includes(ck.toLowerCase()));
+}
+
+// Recursively drop credential-keyed values at ANY depth (e.g. a secret hiding in
+// mcpServers.foo.env.OPENAI_API_KEY), returning a new structure. Top-level-only
+// filtering let nested secrets reach the hub.
+export function redactCredentialsDeep(value: unknown): unknown {
+  if (Array.isArray(value)) return value.map(redactCredentialsDeep);
+  if (value && typeof value === "object") {
+    const out: Record<string, unknown> = {};
+    for (const [key, child] of Object.entries(value as Record<string, unknown>)) {
+      if (isCredentialKey(key)) continue;
+      out[key] = redactCredentialsDeep(child);
+    }
+    return out;
+  }
+  return value;
+}
+
+// Flatten every committed surface of a snapshot into scannable text entries,
+// INCLUDING settings values and hook commands — surfaces that the old file-only
+// scan never inspected, so a secret pasted into settings.json was published
+// unscanned.
+export function snapshotScannableEntries(snapshot: Snapshot): FileEntry[] {
+  const entries: FileEntry[] = [
+    ...(snapshot.agents ?? []),
+    ...(snapshot.rules ?? []),
+    ...(snapshot.skills ?? []),
+    ...(snapshot.commands ?? []),
+    ...(snapshot.globalDocs ?? []),
+    ...(snapshot.mcp ?? []),
+    ...(snapshot.scripts ?? []),
+  ];
+  if (snapshot.statuslineScript) entries.push(snapshot.statuslineScript);
+  if (snapshot.keybindings) entries.push(snapshot.keybindings);
+  if (snapshot.settings && Object.keys(snapshot.settings).length > 0) {
+    entries.push({
+      relativePath: "settings.json",
+      contentHash: "",
+      content: JSON.stringify(snapshot.settings, null, 2),
+    });
+  }
+  for (const hook of snapshot.hooks ?? []) {
+    if (hook.command) {
+      entries.push({ relativePath: `hooks.json#${hook.name}`, contentHash: "", content: hook.command });
+    }
+  }
+  return entries;
+}
+
+export function scanSnapshotForSecrets(snapshot: Snapshot): SecretFinding[] {
+  return scanForSecrets(snapshotScannableEntries(snapshot));
 }
 
 export function loadIgnorePatterns(filePath: string): string[] {
