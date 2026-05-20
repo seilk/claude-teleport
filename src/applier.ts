@@ -1,6 +1,8 @@
 import { writeFileSync, readFileSync, existsSync, mkdirSync, chmodSync } from "node:fs";
 import { join, dirname } from "node:path";
+import { homedir } from "node:os";
 import type { DiffEntry, ApplyResult, ApplyItemResult, PluginEntry, Marketplace } from "./types.js";
+import { substituteForImport } from "./paths.js";
 
 function ensureDir(filePath: string): void {
   const dir = dirname(filePath);
@@ -14,15 +16,21 @@ function isExecutableScript(content: string): boolean {
   return content.startsWith("#!");
 }
 
-function applyFileEntry(entry: DiffEntry, claudeDir: string): ApplyItemResult {
+function applyFileEntry(
+  entry: DiffEntry,
+  claudeDir: string,
+  homeDir: string,
+): ApplyItemResult {
   if (!entry.sourceContent) {
     return { path: entry.relativePath, status: "error", error: "No source content" };
   }
+  // Expand portable $HOME/$CLAUDE_DIR placeholders to this machine's real paths.
+  const content = substituteForImport(entry.sourceContent, homeDir, claudeDir);
   const targetPath = join(claudeDir, entry.relativePath);
   ensureDir(targetPath);
-  writeFileSync(targetPath, entry.sourceContent);
+  writeFileSync(targetPath, content);
   // Restore the executable bit for scripts so synced hooks run on the target machine.
-  if (isExecutableScript(entry.sourceContent)) {
+  if (isExecutableScript(content)) {
     try {
       chmodSync(targetPath, 0o755);
     } catch {
@@ -32,7 +40,11 @@ function applyFileEntry(entry: DiffEntry, claudeDir: string): ApplyItemResult {
   return { path: entry.relativePath, status: "ok" };
 }
 
-function applySettingsEntry(entry: DiffEntry, claudeDir: string): ApplyItemResult {
+function applySettingsEntry(
+  entry: DiffEntry,
+  claudeDir: string,
+  homeDir: string,
+): ApplyItemResult {
   const settingsPath = join(claudeDir, "settings.json");
   const existing = existsSync(settingsPath)
     ? JSON.parse(readFileSync(settingsPath, "utf-8"))
@@ -43,10 +55,12 @@ function applySettingsEntry(entry: DiffEntry, claudeDir: string): ApplyItemResul
   if (entry.type === "removed") {
     delete existing[key];
   } else {
+    // Expand portable placeholders back to real paths before parsing.
+    const expanded = substituteForImport(entry.sourceContent ?? "null", homeDir, claudeDir);
     try {
-      existing[key] = JSON.parse(entry.sourceContent ?? "null");
+      existing[key] = JSON.parse(expanded);
     } catch {
-      existing[key] = entry.sourceContent;
+      existing[key] = expanded;
     }
   }
 
@@ -160,18 +174,19 @@ export async function applyDiff(
   const applied: ApplyItemResult[] = [];
   const pluginInstructions: string[] = [];
   const marketplaceInstructions: string[] = [];
+  const homeDir = homedir();
 
   for (const entry of selections) {
     try {
       if (entry.category === "settings") {
-        applied.push(applySettingsEntry(entry, claudeDir));
+        applied.push(applySettingsEntry(entry, claudeDir, homeDir));
       } else if (entry.category === "plugins") {
         applied.push(applyPluginEntry(entry, claudeDir, pluginInstructions));
       } else if (entry.category === "marketplaces") {
         applied.push(applyMarketplaceEntry(entry, claudeDir, marketplaceInstructions));
       } else {
         // File-based categories: agents, rules, skills, commands, globalDocs, mcp
-        applied.push(applyFileEntry(entry, claudeDir));
+        applied.push(applyFileEntry(entry, claudeDir, homeDir));
       }
     } catch (err) {
       applied.push({

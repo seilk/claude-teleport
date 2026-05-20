@@ -2,6 +2,7 @@ import { readdirSync, readFileSync, existsSync } from "node:fs";
 import { join, relative } from "node:path";
 import { createHash } from "node:crypto";
 import type { FileEntry } from "./types.js";
+import { substituteForExport } from "./paths.js";
 
 export function hashContent(content: string): string {
   return createHash("sha256").update(content).digest("hex");
@@ -20,10 +21,16 @@ export function isTextFile(filePath: string): boolean {
   }
 }
 
+// When homeDir/claudeDir are provided, file content is normalized to the
+// portable $HOME/$CLAUDE_DIR form before hashing, so neither the snapshot nor
+// the content hash carries machine-specific absolute paths. Reading already
+// portable hub content (no homeDir/claudeDir) leaves it untouched.
 export function scanDirectoryToFileEntries(
   baseDir: string,
   dirPath: string,
   category: string,
+  homeDir?: string,
+  claudeDir?: string,
 ): FileEntry[] {
   const fullPath = join(baseDir, dirPath);
   if (!existsSync(fullPath)) return [];
@@ -36,7 +43,11 @@ export function scanDirectoryToFileEntries(
       if (item.isDirectory()) {
         walk(itemPath);
       } else if (item.isFile() && isTextFile(itemPath)) {
-        const content = readFileSync(itemPath, "utf-8");
+        const raw = readFileSync(itemPath, "utf-8");
+        const content =
+          homeDir && claudeDir
+            ? substituteForExport(raw, homeDir, claudeDir)
+            : raw;
         entries.push({
           relativePath: join(category, relative(fullPath, itemPath)),
           contentHash: hashContent(content),

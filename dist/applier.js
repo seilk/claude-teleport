@@ -1,5 +1,7 @@
 import { writeFileSync, readFileSync, existsSync, mkdirSync, chmodSync } from "node:fs";
 import { join, dirname } from "node:path";
+import { homedir } from "node:os";
+import { substituteForImport } from "./paths.js";
 function ensureDir(filePath) {
     const dir = dirname(filePath);
     if (!existsSync(dir)) {
@@ -10,15 +12,17 @@ function isExecutableScript(content) {
     // A shebang on the first line indicates an executable script (.sh, .py, .js, etc.).
     return content.startsWith("#!");
 }
-function applyFileEntry(entry, claudeDir) {
+function applyFileEntry(entry, claudeDir, homeDir) {
     if (!entry.sourceContent) {
         return { path: entry.relativePath, status: "error", error: "No source content" };
     }
+    // Expand portable $HOME/$CLAUDE_DIR placeholders to this machine's real paths.
+    const content = substituteForImport(entry.sourceContent, homeDir, claudeDir);
     const targetPath = join(claudeDir, entry.relativePath);
     ensureDir(targetPath);
-    writeFileSync(targetPath, entry.sourceContent);
+    writeFileSync(targetPath, content);
     // Restore the executable bit for scripts so synced hooks run on the target machine.
-    if (isExecutableScript(entry.sourceContent)) {
+    if (isExecutableScript(content)) {
         try {
             chmodSync(targetPath, 0o755);
         }
@@ -28,7 +32,7 @@ function applyFileEntry(entry, claudeDir) {
     }
     return { path: entry.relativePath, status: "ok" };
 }
-function applySettingsEntry(entry, claudeDir) {
+function applySettingsEntry(entry, claudeDir, homeDir) {
     const settingsPath = join(claudeDir, "settings.json");
     const existing = existsSync(settingsPath)
         ? JSON.parse(readFileSync(settingsPath, "utf-8"))
@@ -38,11 +42,13 @@ function applySettingsEntry(entry, claudeDir) {
         delete existing[key];
     }
     else {
+        // Expand portable placeholders back to real paths before parsing.
+        const expanded = substituteForImport(entry.sourceContent ?? "null", homeDir, claudeDir);
         try {
-            existing[key] = JSON.parse(entry.sourceContent ?? "null");
+            existing[key] = JSON.parse(expanded);
         }
         catch {
-            existing[key] = entry.sourceContent;
+            existing[key] = expanded;
         }
     }
     writeFileSync(settingsPath, JSON.stringify(existing, null, 2));
@@ -136,10 +142,11 @@ export async function applyDiff(selections, claudeDir) {
     const applied = [];
     const pluginInstructions = [];
     const marketplaceInstructions = [];
+    const homeDir = homedir();
     for (const entry of selections) {
         try {
             if (entry.category === "settings") {
-                applied.push(applySettingsEntry(entry, claudeDir));
+                applied.push(applySettingsEntry(entry, claudeDir, homeDir));
             }
             else if (entry.category === "plugins") {
                 applied.push(applyPluginEntry(entry, claudeDir, pluginInstructions));
@@ -149,7 +156,7 @@ export async function applyDiff(selections, claudeDir) {
             }
             else {
                 // File-based categories: agents, rules, skills, commands, globalDocs, mcp
-                applied.push(applyFileEntry(entry, claudeDir));
+                applied.push(applyFileEntry(entry, claudeDir, homeDir));
             }
         }
         catch (err) {
