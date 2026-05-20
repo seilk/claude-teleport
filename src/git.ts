@@ -1,4 +1,4 @@
-import { execSync } from "node:child_process";
+import { execSync, execFileSync } from "node:child_process";
 import { existsSync, mkdirSync, writeFileSync, readFileSync, readdirSync, rmSync } from "node:fs";
 import { join } from "node:path";
 import { platform, tmpdir } from "node:os";
@@ -41,6 +41,16 @@ function exec(cmd: string, cwd?: string): string {
   return execSync(cmd, { encoding: "utf-8", cwd, timeout }).trim();
 }
 
+// Shell-free invocation for any command that interpolates a variable (branch
+// name, machine alias, commit message, username, path). Arguments are passed
+// directly to the program as an argv array, so a value like "x; rm -rf ~" is a
+// literal argument and can never break out into a shell.
+function execFile(file: string, args: readonly string[], cwd?: string): string {
+  const isRemote = args.some((a) => a === "push" || a === "pull" || a === "fetch" || a === "clone");
+  const timeout = isRemote ? REMOTE_TIMEOUT : LOCAL_TIMEOUT;
+  return execFileSync(file, args as string[], { encoding: "utf-8", cwd, timeout }).trim();
+}
+
 export function checkGhAuth(): GhAuthStatus {
   const os = platform();
   let ghInstalled = false;
@@ -66,7 +76,7 @@ export function getGhUsername(): string {
 
 export function hubExists(username: string): { exists: boolean; repoUrl?: string } {
   try {
-    exec(`gh repo view ${username}/${PRIVATE_REPO_NAME} --json url -q .url`);
+    execFile("gh", ["repo", "view", `${username}/${PRIVATE_REPO_NAME}`, "--json", "url", "-q", ".url"]);
     const repoUrl = `https://github.com/${username}/${PRIVATE_REPO_NAME}`;
     return { exists: true, repoUrl };
   } catch {
@@ -83,11 +93,11 @@ export function createHubRepo(username: string, cloneTo?: string): HubInitResult
     return { created: false, repoUrl: check.repoUrl!, localPath: cloneDir };
   }
 
-  exec(`gh repo create ${username}/${PRIVATE_REPO_NAME} --private`);
+  execFile("gh", ["repo", "create", `${username}/${PRIVATE_REPO_NAME}`, "--private"]);
 
   // Use `gh repo clone` which respects the user's configured git protocol (SSH/HTTPS)
   const cloneDir = cloneTo ?? join(tmpdir(), `teleport-hub-${Date.now()}`);
-  exec(`gh repo clone ${username}/${PRIVATE_REPO_NAME} "${cloneDir}"`);
+  execFile("gh", ["repo", "clone", `${username}/${PRIVATE_REPO_NAME}`, cloneDir]);
   writeFileSync(join(cloneDir, "README.md"), `# Claude Teleport Hub\n\nPrivate hub for syncing Claude Code configs across machines.\n`);
   exec("git add -A", cloneDir);
   exec('git commit -m "init: create hub repository"', cloneDir);
@@ -105,14 +115,14 @@ export function cloneOrPullHub(username: string, localPath: string): void {
       rmSync(localPath, { recursive: true, force: true });
     }
     mkdirSync(localPath, { recursive: true });
-    exec(`gh repo clone ${username}/${PRIVATE_REPO_NAME} "${localPath}"`);
+    execFile("gh", ["repo", "clone", `${username}/${PRIVATE_REPO_NAME}`, localPath]);
   }
 }
 
 export function pushToHub(localPath: string, message: string): void {
   exec("git add -A", localPath);
   try {
-    exec(`git commit -m "${message}"`, localPath);
+    execFile("git", ["commit", "-m", message], localPath);
   } catch {
     return;
   }
@@ -336,9 +346,9 @@ export function pushToMachineBranch(
   try {
     // Create or switch to machine branch
     try {
-      exec(`git checkout ${machineAlias}`, repoPath);
+      execFile("git", ["checkout", machineAlias], repoPath);
     } catch {
-      exec(`git checkout -b ${machineAlias}`, repoPath);
+      execFile("git", ["checkout", "-b", machineAlias], repoPath);
     }
 
     // Write configs under machines/{alias}/
@@ -351,7 +361,7 @@ export function pushToMachineBranch(
     // Commit and push machine branch
     exec("git add -A", repoPath);
     try {
-      exec(`git commit -m "teleport: update ${machineAlias}"`, repoPath);
+      execFile("git", ["commit", "-m", `teleport: update ${machineAlias}`], repoPath);
     } catch {
       // Nothing to commit
     }
@@ -372,7 +382,7 @@ export function pushToMachineBranch(
     } else {
       exec("git checkout main", repoPath);
       try {
-        exec(`git merge ${machineAlias} --no-ff -m "merge ${machineAlias} into main"`, repoPath);
+        execFile("git", ["merge", machineAlias, "--no-ff", "-m", `merge ${machineAlias} into main`], repoPath);
       } catch {
         // Merge conflict detected — collect conflict file list
         try {
@@ -383,7 +393,7 @@ export function pushToMachineBranch(
         }
         // Auto-resolve with theirs strategy
         exec("git merge --abort", repoPath);
-        exec(`git merge ${machineAlias} -X theirs --no-ff -m "merge ${machineAlias} into main (auto-resolved)"`, repoPath);
+        execFile("git", ["merge", machineAlias, "-X", "theirs", "--no-ff", "-m", `merge ${machineAlias} into main (auto-resolved)`], repoPath);
       }
     }
 
@@ -403,11 +413,11 @@ export function pushToMachineBranch(
     exec("git push origin main", repoPath);
     if (mainExists) {
       // Machine branch exists as a separate branch — push it too
-      exec(`git push origin ${machineAlias}`, repoPath);
+      execFile("git", ["push", "origin", machineAlias], repoPath);
     } else {
       // main was created by renaming the machine branch — recreate machine branch from main
-      exec(`git branch ${machineAlias}`, repoPath);
-      exec(`git push origin ${machineAlias}`, repoPath);
+      execFile("git", ["branch", machineAlias], repoPath);
+      execFile("git", ["push", "origin", machineAlias], repoPath);
     }
 
     return conflicts.length > 0
@@ -422,12 +432,12 @@ export function pushToMachineBranch(
       if (renamedToMain) {
         // Already on main after rename — no checkout needed
         if (originalHead) {
-          exec(`git reset --hard ${originalHead}`, repoPath);
+          execFile("git", ["reset", "--hard", originalHead], repoPath);
         }
       } else {
-        exec(`git checkout ${originalBranch}`, repoPath);
+        execFile("git", ["checkout", originalBranch], repoPath);
         if (originalHead) {
-          exec(`git reset --hard ${originalHead}`, repoPath);
+          execFile("git", ["reset", "--hard", originalHead], repoPath);
         }
       }
     } catch { /* best effort rollback */ }
@@ -495,7 +505,7 @@ export function listMachineBranches(repoPath: string): MachineInfo[] {
   const currentBranch = exec("git branch --show-current", repoPath);
 
   for (const branch of branches) {
-    exec(`git checkout ${branch}`, repoPath);
+    execFile("git", ["checkout", branch], repoPath);
     const yamlPath = join(repoPath, "machines", branch, "snapshot.yaml");
     const legacyYaml = join(repoPath, "snapshot.yaml");
     const targetYaml = existsSync(yamlPath) ? yamlPath : legacyYaml;
@@ -511,7 +521,7 @@ export function listMachineBranches(repoPath: string): MachineInfo[] {
     machines.push({ alias: branch, id, lastPush });
   }
 
-  exec(`git checkout ${currentBranch || "main"}`, repoPath);
+  execFile("git", ["checkout", currentBranch || "main"], repoPath);
   return machines;
 }
 
@@ -652,8 +662,15 @@ function readSnapshotFromDir(machineDir: string, branchName: string): Snapshot |
 }
 
 export function readFromBranch(repoPath: string, branchName: string): Snapshot | null {
+  // branchName arrives straight from the CLI --branch flag; validate it before
+  // it ever reaches git, and pass it as an argv (never a shell string).
   try {
-    exec(`git checkout ${branchName}`, repoPath);
+    sanitizeBranchName(branchName);
+  } catch {
+    return null;
+  }
+  try {
+    execFile("git", ["checkout", branchName], repoPath);
   } catch {
     return null;
   }
@@ -714,10 +731,10 @@ export function migrateRootToNamespaced(repoPath: string): boolean {
 
 export function createPublicRepo(username: string): string {
   try {
-    exec(`gh repo view ${username}/${PUBLIC_REPO_NAME} --json url`);
+    execFile("gh", ["repo", "view", `${username}/${PUBLIC_REPO_NAME}`, "--json", "url"]);
     return `https://github.com/${username}/${PUBLIC_REPO_NAME}`;
   } catch {
-    exec(`gh repo create ${username}/${PUBLIC_REPO_NAME} --public`);
+    execFile("gh", ["repo", "create", `${username}/${PUBLIC_REPO_NAME}`, "--public"]);
     return `https://github.com/${username}/${PUBLIC_REPO_NAME}`;
   }
 }
@@ -726,7 +743,7 @@ export function createPublicRepo(username: string): string {
 
 export function publicRepoExists(username: string): { exists: boolean; repoUrl?: string } {
   try {
-    exec(`gh repo view ${username}/${PUBLIC_REPO_NAME} --json url -q .url`);
+    execFile("gh", ["repo", "view", `${username}/${PUBLIC_REPO_NAME}`, "--json", "url", "-q", ".url"]);
     const repoUrl = `https://github.com/${username}/${PUBLIC_REPO_NAME}`;
     return { exists: true, repoUrl };
   } catch {
@@ -742,7 +759,7 @@ export function cloneOrPullPublic(username: string, localPath: string): void {
       rmSync(localPath, { recursive: true, force: true });
     }
     mkdirSync(localPath, { recursive: true });
-    exec(`gh repo clone ${username}/${PUBLIC_REPO_NAME} "${localPath}"`);
+    execFile("gh", ["repo", "clone", `${username}/${PUBLIC_REPO_NAME}`, localPath]);
   }
 }
 
@@ -758,6 +775,13 @@ export function pushToPublicRepo(
   snapshot: Snapshot,
   username: string = "",
 ): PushResult {
+  // Alias is used both as a path segment and a commit message; validate it so a
+  // value like "../../x" or "x; rm -rf ~" can neither traverse nor inject.
+  try {
+    sanitizeBranchName(machineAlias);
+  } catch (err) {
+    return { status: "error", error: err instanceof Error ? err.message : String(err) };
+  }
   const machinePrefix = `machines/${machineAlias}`;
 
   let originalHead: string;
@@ -780,7 +804,7 @@ export function pushToPublicRepo(
 
     exec("git add -A", repoPath);
     try {
-      exec(`git commit -m "teleport: update ${machineAlias} (public)"`, repoPath);
+      execFile("git", ["commit", "-m", `teleport: update ${machineAlias} (public)`], repoPath);
     } catch {
       // Nothing to commit
       return { status: "ok" };
@@ -792,7 +816,7 @@ export function pushToPublicRepo(
     // Rollback
     try {
       if (originalHead) {
-        exec(`git reset --hard ${originalHead}`, repoPath);
+        execFile("git", ["reset", "--hard", originalHead], repoPath);
       }
     } catch { /* best effort */ }
 
