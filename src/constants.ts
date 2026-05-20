@@ -25,7 +25,17 @@ export const CATEGORY_PATHS: Readonly<Record<string, string>> = {
 
 export const STATUSLINE_SCRIPT_FILE = "statusline-command.sh";
 
-export const VALID_CATEGORIES = Object.keys(CATEGORY_PATHS) as readonly string[];
+// Every category that can appear in a diff/selection — the directory-backed
+// ones plus the structured/single-file surfaces. Used to validate apply
+// selections, so it must list more than just CATEGORY_PATHS.
+export const VALID_CATEGORIES = [
+  ...Object.keys(CATEGORY_PATHS),
+  "settings",
+  "plugins",
+  "marketplaces",
+  "keybindings",
+  "statuslineScript",
+] as readonly string[];
 
 export const GLOBAL_DOC_FILES = ["CLAUDE.md", "AGENTS.md"] as const;
 

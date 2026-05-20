@@ -11,6 +11,7 @@ import { scanForRcePatterns, scanSnapshotForSecrets } from "./secrets.js";
 import { getMachineId, getMachineAlias } from "./machine.js";
 import { checkGhAuth, cloneOrPullHub, createHubRepo, hubExists, listMachineBranches, pushToMachineBranch, readFromBranch, readMachineFromMain, writeHubReadme, migrateRootToNamespaced, publicRepoExists, cloneOrPullPublic, readMachineFromPublic, pushToPublicRepo } from "./git.js";
 import { CLAUDE_DIR, VALID_CATEGORIES } from "./constants.js";
+import { isSafeBackupTimestamp } from "./safe-path.js";
 import type { Snapshot, DiffEntry, FileEntry } from "./types.js";
 
 function parseArgs(args: string[]): { command: string; flags: Record<string, string> } {
@@ -226,6 +227,11 @@ async function main(): Promise<void> {
       const timestamp = flags["timestamp"];
       if (!timestamp) {
         output({ status: "error", error: "Missing --timestamp" });
+        process.exitCode = 1;
+        break;
+      }
+      if (!isSafeBackupTimestamp(timestamp)) {
+        output({ status: "error", error: `Invalid --timestamp: ${timestamp}` });
         process.exitCode = 1;
         break;
       }

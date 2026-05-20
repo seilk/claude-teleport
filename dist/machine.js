@@ -30,15 +30,7 @@ export function getMachineAlias() {
     }
     return "unknown";
 }
-export function getMachineId(idFile = TELEPORT_MACHINE_ID_FILE) {
-    if (existsSync(idFile)) {
-        const data = JSON.parse(readFileSync(idFile, "utf-8"));
-        return { id: data.id, alias: data.alias };
-    }
-    const identity = {
-        id: randomUUID(),
-        alias: getMachineAlias(),
-    };
+function persistIdentity(idFile, identity) {
     const dir = dirname(idFile);
     if (!existsSync(dir)) {
         mkdirSync(dir, { recursive: true });
@@ -46,8 +38,31 @@ export function getMachineId(idFile = TELEPORT_MACHINE_ID_FILE) {
     writeFileSync(idFile, JSON.stringify(identity, null, 2));
     return identity;
 }
+export function getMachineId(idFile = TELEPORT_MACHINE_ID_FILE) {
+    if (existsSync(idFile)) {
+        try {
+            const data = JSON.parse(readFileSync(idFile, "utf-8"));
+            if (data && typeof data.id === "string" && data.id && typeof data.alias === "string" && data.alias) {
+                return { id: data.id, alias: data.alias };
+            }
+        }
+        catch {
+            // Corrupt id file — regenerate instead of aborting. getMachineId runs on
+            // every scan, so a truncated file must not break the whole command.
+        }
+    }
+    return persistIdentity(idFile, { id: randomUUID(), alias: getMachineAlias() });
+}
 export function setMachineAlias(alias, idFile = TELEPORT_MACHINE_ID_FILE) {
-    const data = JSON.parse(readFileSync(idFile, "utf-8"));
-    writeFileSync(idFile, JSON.stringify({ ...data, alias }, null, 2));
+    let id = randomUUID();
+    try {
+        const data = JSON.parse(readFileSync(idFile, "utf-8"));
+        if (data && typeof data.id === "string" && data.id)
+            id = data.id;
+    }
+    catch {
+        // Corrupt or missing — keep the freshly generated id.
+    }
+    persistIdentity(idFile, { id, alias });
 }
 //# sourceMappingURL=machine.js.map

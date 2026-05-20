@@ -1,5 +1,5 @@
 import { resolve, sep, dirname } from "node:path";
-import { lstatSync, realpathSync, existsSync } from "node:fs";
+import { lstatSync, realpathSync, existsSync, writeFileSync, renameSync } from "node:fs";
 
 // Resolve `relativePath` against `baseDir` and return the absolute target only
 // if it stays inside `baseDir`. Rejects `..` traversal and absolute paths that
@@ -63,4 +63,19 @@ const FORBIDDEN_SETTINGS_KEYS: ReadonlySet<string> = new Set([
 
 export function isForbiddenSettingsKey(key: string): boolean {
   return FORBIDDEN_SETTINGS_KEYS.has(key);
+}
+
+// Write via a temp file + rename so a crash mid-write can never truncate the
+// existing file (notably the user's real settings.json). rename is atomic on
+// the same filesystem; the temp lives in the target dir to guarantee that.
+export function atomicWrite(path: string, content: string): void {
+  const tmp = `${path}.teleport-tmp-${process.pid}`;
+  writeFileSync(tmp, content);
+  renameSync(tmp, path);
+}
+
+// A backup timestamp comes from a CLI flag and is joined onto a path. Allow only
+// the characters produced by our own timestamp format; reject separators / "..".
+export function isSafeBackupTimestamp(timestamp: string): boolean {
+  return /^[A-Za-z0-9._-]+$/.test(timestamp) && !timestamp.includes("..");
 }
