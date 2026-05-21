@@ -1,5 +1,6 @@
 import { resolve, sep, dirname } from "node:path";
-import { lstatSync, realpathSync, existsSync, writeFileSync, renameSync } from "node:fs";
+import { lstatSync, realpathSync, existsSync, writeFileSync, renameSync, unlinkSync } from "node:fs";
+import { randomBytes } from "node:crypto";
 
 // Resolve `relativePath` against `baseDir` and return the absolute target only
 // if it stays inside `baseDir`. Rejects `..` traversal and absolute paths that
@@ -69,9 +70,23 @@ export function isForbiddenSettingsKey(key: string): boolean {
 // existing file (notably the user's real settings.json). rename is atomic on
 // the same filesystem; the temp lives in the target dir to guarantee that.
 export function atomicWrite(path: string, content: string): void {
-  const tmp = `${path}.teleport-tmp-${process.pid}`;
-  writeFileSync(tmp, content);
-  renameSync(tmp, path);
+  // Random suffix + same dir keeps rename atomic and the temp unpredictable.
+  const tmp = `${path}.teleport-tmp-${process.pid}-${randomBytes(6).toString("hex")}`;
+  try {
+    // "wx" = O_CREAT|O_EXCL: fail if tmp already exists, so an attacker-planted
+    // symlink at the temp path can't redirect this write outside the dir.
+    writeFileSync(tmp, content, { flag: "wx" });
+    // rename replaces the destination (even if it's a symlink) rather than
+    // following it, so it can't be used to write through a link either.
+    renameSync(tmp, path);
+  } catch (err) {
+    try {
+      unlinkSync(tmp);
+    } catch {
+      // temp may not exist (e.g. "wx" rejected a pre-existing path); nothing to clean
+    }
+    throw err;
+  }
 }
 
 // A backup timestamp comes from a CLI flag and is joined onto a path. Allow only

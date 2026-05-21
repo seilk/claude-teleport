@@ -1,10 +1,10 @@
 import { describe, it, beforeEach, afterEach } from "node:test";
 import assert from "node:assert/strict";
-import { mkdtempSync, writeFileSync, readFileSync, existsSync, readdirSync, rmSync } from "node:fs";
+import { mkdtempSync, writeFileSync, readFileSync, existsSync, readdirSync, rmSync, symlinkSync, lstatSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { getMachineId, setMachineAlias } from "../machine.js";
-import { isSafeBackupTimestamp, atomicWrite } from "../safe-path.js";
+import { isSafeBackupTimestamp, atomicWrite, isForbiddenSettingsKey } from "../safe-path.js";
 import { VALID_CATEGORIES } from "../constants.js";
 
 describe("getMachineId corruption resilience", () => {
@@ -63,6 +63,32 @@ describe("atomicWrite", () => {
     assert.equal(readFileSync(target, "utf-8"), '{"a":1}');
     assert.deepEqual(readdirSync(dir), ["settings.json"]);
     rmSync(dir, { recursive: true, force: true });
+  });
+
+  it("replaces a symlinked destination instead of writing through it", () => {
+    const dir = mkdtempSync(join(tmpdir(), "teleport-atomic-link-"));
+    const outside = join(dir, "outside.txt");
+    const target = join(dir, "settings.json");
+    writeFileSync(outside, "ORIGINAL");
+    symlinkSync(outside, target); // settings.json -> outside.txt
+
+    atomicWrite(target, "NEW");
+
+    // The link target must be untouched; the destination becomes a real file.
+    assert.equal(readFileSync(outside, "utf-8"), "ORIGINAL", "must not write through the symlink");
+    assert.equal(lstatSync(target).isSymbolicLink(), false, "destination is now a regular file");
+    assert.equal(readFileSync(target, "utf-8"), "NEW");
+    rmSync(dir, { recursive: true, force: true });
+  });
+});
+
+describe("isForbiddenSettingsKey", () => {
+  it("blocks prototype-polluting keys and allows normal ones", () => {
+    assert.ok(isForbiddenSettingsKey("__proto__"));
+    assert.ok(isForbiddenSettingsKey("constructor"));
+    assert.ok(isForbiddenSettingsKey("prototype"));
+    assert.ok(!isForbiddenSettingsKey("theme"));
+    assert.ok(!isForbiddenSettingsKey("statusLine"));
   });
 });
 
