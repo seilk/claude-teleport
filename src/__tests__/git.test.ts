@@ -70,6 +70,30 @@ describe("pushToMachineBranch", () => {
     assert.equal(readFileSync(join(workPath, "machines", "macbook-pro", "agents", "planner.md"), "utf-8"), "# Planner");
   });
 
+  it("drops entries removed locally on a later push so deletions sync", () => {
+    pushToMachineBranch(workPath, "macbook-pro", makeSnapshot({
+      skills: [
+        { relativePath: "skills/keep/SKILL.md", contentHash: "k", content: "# keep" },
+        { relativePath: "skills/gone/SKILL.md", contentHash: "g", content: "# gone" },
+      ],
+    }));
+    // Re-push with the second skill removed locally
+    pushToMachineBranch(workPath, "macbook-pro", makeSnapshot({
+      skills: [
+        { relativePath: "skills/keep/SKILL.md", contentHash: "k", content: "# keep" },
+      ],
+    }));
+
+    execSync("git checkout macbook-pro", { cwd: workPath, encoding: "utf-8" });
+    const base = join(workPath, "machines", "macbook-pro", "skills");
+    assert.ok(existsSync(join(base, "keep", "SKILL.md")), "kept skill remains");
+    assert.ok(!existsSync(join(base, "gone", "SKILL.md")), "removed skill must be deleted from the branch");
+
+    const snap = readFromBranch(workPath, "macbook-pro");
+    assert.ok(snap);
+    assert.deepEqual(snap!.skills.map((e) => e.relativePath).sort(), ["skills/keep/SKILL.md"]);
+  });
+
   it("writes snapshot.yaml with metadata under machines/", () => {
     pushToMachineBranch(workPath, "macbook-pro", makeSnapshot());
     execSync("git checkout macbook-pro", { cwd: workPath, encoding: "utf-8" });
