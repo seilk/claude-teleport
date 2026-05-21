@@ -38,9 +38,32 @@ export function scanForRcePatterns(content) {
     }
     return findings;
 }
+// Split a key into lowercase word tokens across camelCase and separator
+// boundaries: "ANTHROPIC_API_KEY" -> [anthropic, api, key], "apiKey" -> [api, key].
+function tokenizeKey(key) {
+    return key
+        .replace(/([a-z0-9])([A-Z])/g, "$1 $2")
+        .split(/[^A-Za-z0-9]+/)
+        .map((t) => t.toLowerCase())
+        .filter(Boolean);
+}
+function containsTokenRun(haystack, needle) {
+    if (needle.length === 0)
+        return false;
+    for (let i = 0; i + needle.length <= haystack.length; i++) {
+        if (needle.every((tok, j) => haystack[i + j] === tok))
+            return true;
+    }
+    return false;
+}
+const CREDENTIAL_KEY_TOKENS = CREDENTIAL_KEYS.map(tokenizeKey);
+// Match credential terms on word boundaries, not raw substrings: a benign key
+// like "author" or "tokenizer" must NOT be treated as "auth"/"token", while
+// "ANTHROPIC_API_KEY" / "accessToken" still match. Substring matching silently
+// dropped legitimate settings (data loss), made worse once applied recursively.
 export function isCredentialKey(key) {
-    const lower = key.toLowerCase();
-    return CREDENTIAL_KEYS.some((ck) => lower.includes(ck.toLowerCase()));
+    const tokens = tokenizeKey(key);
+    return CREDENTIAL_KEY_TOKENS.some((needle) => containsTokenRun(tokens, needle));
 }
 // Recursively drop credential-keyed values at ANY depth (e.g. a secret hiding in
 // mcpServers.foo.env.OPENAI_API_KEY), returning a new structure. Top-level-only

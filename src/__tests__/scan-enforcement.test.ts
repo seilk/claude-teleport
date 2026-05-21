@@ -65,11 +65,13 @@ describe("redactCredentialsDeep", () => {
   it("drops credential-keyed values at any depth and keeps the rest", () => {
     const input = {
       theme: "dark",
+      author: "seil",
       token: "top-level-secret",
       mcpServers: { foo: { env: { OPENAI_API_KEY: "nested-secret", PATH: "/bin" } } },
     };
     const out = redactCredentialsDeep(input) as Record<string, any>;
     assert.equal(out.theme, "dark");
+    assert.equal(out.author, "seil", "benign key containing 'auth' is kept, not dropped");
     assert.equal(out.token, undefined, "top-level credential key dropped");
     assert.equal(out.mcpServers.foo.env.OPENAI_API_KEY, undefined, "nested credential key dropped");
     assert.equal(out.mcpServers.foo.env.PATH, "/bin", "non-credential nested value kept");
