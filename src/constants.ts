@@ -25,6 +25,14 @@ export const CATEGORY_PATHS: Readonly<Record<string, string>> = {
 
 export const STATUSLINE_SCRIPT_FILE = "statusline-command.sh";
 
+// Directory names never worth syncing. A skill installed via `git clone` carries
+// a nested .git/ (and often node_modules/); without this the scanner walks those
+// internals, polluting the snapshot with hundreds of un-syncable files.
+export const IGNORED_SCAN_DIRS: ReadonlySet<string> = new Set([
+  ".git",
+  "node_modules",
+]);
+
 // Every category that can appear in a diff/selection — the directory-backed
 // ones plus the structured/single-file surfaces. Used to validate apply
 // selections, so it must list more than just CATEGORY_PATHS.

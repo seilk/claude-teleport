@@ -2,6 +2,7 @@ import { readdirSync, readFileSync, existsSync } from "node:fs";
 import { join, relative } from "node:path";
 import { createHash } from "node:crypto";
 import { substituteForExport } from "./paths.js";
+import { IGNORED_SCAN_DIRS } from "./constants.js";
 export function hashContent(content) {
     return createHash("sha256").update(content).digest("hex");
 }
@@ -32,6 +33,8 @@ export function scanDirectoryToFileEntries(baseDir, dirPath, category, homeDir, 
         for (const item of readdirSync(dir, { withFileTypes: true })) {
             const itemPath = join(dir, item.name);
             if (item.isDirectory()) {
+                if (IGNORED_SCAN_DIRS.has(item.name))
+                    continue;
                 walk(itemPath);
             }
             else if (item.isFile() && isTextFile(itemPath)) {
