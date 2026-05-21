@@ -72,18 +72,24 @@ export function isForbiddenSettingsKey(key: string): boolean {
 export function atomicWrite(path: string, content: string): void {
   // Random suffix + same dir keeps rename atomic and the temp unpredictable.
   const tmp = `${path}.teleport-tmp-${process.pid}-${randomBytes(6).toString("hex")}`;
+  let created = false;
   try {
     // "wx" = O_CREAT|O_EXCL: fail if tmp already exists, so an attacker-planted
     // symlink at the temp path can't redirect this write outside the dir.
     writeFileSync(tmp, content, { flag: "wx" });
+    created = true;
     // rename replaces the destination (even if it's a symlink) rather than
     // following it, so it can't be used to write through a link either.
     renameSync(tmp, path);
   } catch (err) {
-    try {
-      unlinkSync(tmp);
-    } catch {
-      // temp may not exist (e.g. "wx" rejected a pre-existing path); nothing to clean
+    // Only remove a temp we actually created — never a pre-existing path that
+    // "wx" refused, which would let this delete a file it does not own.
+    if (created) {
+      try {
+        unlinkSync(tmp);
+      } catch {
+        // best-effort cleanup of our own leftover temp
+      }
     }
     throw err;
   }
