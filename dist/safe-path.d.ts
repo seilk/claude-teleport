@@ -8,3 +8,5 @@ export type SafeTarget = {
 };
 export declare function safeWriteTarget(baseDir: string, relativePath: string): SafeTarget;
 export declare function isForbiddenSettingsKey(key: string): boolean;
+export declare function atomicWrite(path: string, content: string): void;
+export declare function isSafeBackupTimestamp(timestamp: string): boolean;

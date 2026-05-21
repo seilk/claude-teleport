@@ -1,5 +1,6 @@
 import { resolve, sep, dirname } from "node:path";
-import { lstatSync, realpathSync, existsSync } from "node:fs";
+import { lstatSync, realpathSync, existsSync, writeFileSync, renameSync, unlinkSync } from "node:fs";
+import { randomBytes } from "node:crypto";
 // Resolve `relativePath` against `baseDir` and return the absolute target only
 // if it stays inside `baseDir`. Rejects `..` traversal and absolute paths that
 // escape (e.g. "agents/../../.zshrc", "/etc/passwd"). Returns null on escape.
@@ -57,5 +58,40 @@ const FORBIDDEN_SETTINGS_KEYS = new Set([
 ]);
 export function isForbiddenSettingsKey(key) {
     return FORBIDDEN_SETTINGS_KEYS.has(key);
+}
+// Write via a temp file + rename so a crash mid-write can never truncate the
+// existing file (notably the user's real settings.json). rename is atomic on
+// the same filesystem; the temp lives in the target dir to guarantee that.
+export function atomicWrite(path, content) {
+    // Random suffix + same dir keeps rename atomic and the temp unpredictable.
+    const tmp = `${path}.teleport-tmp-${process.pid}-${randomBytes(6).toString("hex")}`;
+    let created = false;
+    try {
+        // "wx" = O_CREAT|O_EXCL: fail if tmp already exists, so an attacker-planted
+        // symlink at the temp path can't redirect this write outside the dir.
+        writeFileSync(tmp, content, { flag: "wx" });
+        created = true;
+        // rename replaces the destination (even if it's a symlink) rather than
+        // following it, so it can't be used to write through a link either.
+        renameSync(tmp, path);
+    }
+    catch (err) {
+        // Only remove a temp we actually created — never a pre-existing path that
+        // "wx" refused, which would let this delete a file it does not own.
+        if (created) {
+            try {
+                unlinkSync(tmp);
+            }
+            catch {
+                // best-effort cleanup of our own leftover temp
+            }
+        }
+        throw err;
+    }
+}
+// A backup timestamp comes from a CLI flag and is joined onto a path. Allow only
+// the characters produced by our own timestamp format; reject separators / "..".
+export function isSafeBackupTimestamp(timestamp) {
+    return /^[A-Za-z0-9._-]+$/.test(timestamp) && !timestamp.includes("..");
 }
 //# sourceMappingURL=safe-path.js.map

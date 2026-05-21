@@ -16,7 +16,17 @@ export const CATEGORY_PATHS = {
     globalDocs: "",
 };
 export const STATUSLINE_SCRIPT_FILE = "statusline-command.sh";
-export const VALID_CATEGORIES = Object.keys(CATEGORY_PATHS);
+// Every category that can appear in a diff/selection — the directory-backed
+// ones plus the structured/single-file surfaces. Used to validate apply
+// selections, so it must list more than just CATEGORY_PATHS.
+export const VALID_CATEGORIES = [
+    ...Object.keys(CATEGORY_PATHS),
+    "settings",
+    "plugins",
+    "marketplaces",
+    "keybindings",
+    "statuslineScript",
+];
 export const GLOBAL_DOC_FILES = ["CLAUDE.md", "AGENTS.md"];
 export const DEFAULT_IGNORE_PATTERNS = [
     ".credentials.json",

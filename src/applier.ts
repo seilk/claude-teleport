@@ -1,9 +1,9 @@
-import { writeFileSync, readFileSync, existsSync, mkdirSync, chmodSync } from "node:fs";
+import { readFileSync, existsSync, mkdirSync, chmodSync } from "node:fs";
 import { join, dirname } from "node:path";
 import { homedir } from "node:os";
 import type { DiffEntry, ApplyResult, ApplyItemResult, PluginEntry, Marketplace } from "./types.js";
 import { substituteForImport } from "./paths.js";
-import { safeWriteTarget, isForbiddenSettingsKey } from "./safe-path.js";
+import { safeWriteTarget, isForbiddenSettingsKey, atomicWrite } from "./safe-path.js";
 
 function ensureDir(filePath: string): void {
   const dir = dirname(filePath);
@@ -35,7 +35,7 @@ function applyFileEntry(
   // Expand portable placeholders to this machine's real paths.
   const content = substituteForImport(entry.sourceContent, homeDir, claudeDir);
   ensureDir(targetPath);
-  writeFileSync(targetPath, content);
+  atomicWrite(targetPath, content);
   // Restore the executable bit for scripts so synced hooks run on the target machine.
   if (isExecutableScript(content)) {
     try {
@@ -75,7 +75,7 @@ function applySettingsEntry(
     }
   }
 
-  writeFileSync(settingsPath, JSON.stringify(existing, null, 2));
+  atomicWrite(settingsPath, JSON.stringify(existing, null, 2));
   return { path: entry.relativePath, status: "ok" };
 }
 
@@ -85,7 +85,7 @@ function updateSettings(claudeDir: string, updater: (settings: Record<string, un
     ? JSON.parse(readFileSync(settingsPath, "utf-8"))
     : {};
   updater(existing);
-  writeFileSync(settingsPath, JSON.stringify(existing, null, 2));
+  atomicWrite(settingsPath, JSON.stringify(existing, null, 2));
 }
 
 function applyPluginEntry(
