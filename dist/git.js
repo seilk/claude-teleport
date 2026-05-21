@@ -236,7 +236,7 @@ function generateHubReadme(username, isPublic) {
         "  - `rules/` — Coding standards and language-specific rules",
         "  - `skills/` — SKILL.md files and supporting resources",
         "  - `commands/` — Custom command definitions",
-        "  - `mcp-configs/` — MCP server configurations",
+        "  - `mcp/` — MCP server configurations",
         "  - `scripts/` — Hook scripts and helper executables referenced by `settings.json`",
         "  - `statusline-command.sh` — Optional statusline shell script",
         "  - `plugins/` — Plugin and marketplace metadata",
@@ -479,7 +479,10 @@ function readSnapshotFromDir(machineDir, branchName) {
     const rules = scanDirectoryToFileEntries(machineDir, CATEGORY_PATHS.rules, "rules");
     const skills = scanDirectoryToFileEntries(machineDir, CATEGORY_PATHS.skills, "skills");
     const commands = scanDirectoryToFileEntries(machineDir, CATEGORY_PATHS.commands, "commands");
-    const mcp = scanDirectoryToFileEntries(machineDir, CATEGORY_PATHS.mcp, "mcp-configs");
+    // The hub stores mcp under "mcp/" (the snapshot's category name), NOT the
+    // local "mcp-configs" dir name (CATEGORY_PATHS.mcp). Reading from the wrong
+    // dir/label made mcp silently vanish on every round-trip.
+    const mcp = scanDirectoryToFileEntries(machineDir, "mcp", "mcp");
     const scripts = scanDirectoryToFileEntries(machineDir, CATEGORY_PATHS.scripts, "scripts");
     // Read statusline script (single file at root)
     let statuslineScript;
@@ -644,7 +647,7 @@ export function migrateRootToNamespaced(repoPath) {
     if (!existsSync(rootSnapshot) || existsSync(machinesDir))
         return false;
     // Remove root-level config files (they'll be re-pushed under machines/)
-    const dirsToRemove = ["agents", "rules", "skills", "commands", "mcp-configs", "plugins"];
+    const dirsToRemove = ["agents", "rules", "skills", "commands", "mcp", "mcp-configs", "plugins"];
     const filesToRemove = ["snapshot.yaml", "settings.json", "CLAUDE.md", "AGENTS.md"];
     for (const dir of dirsToRemove) {
         const p = join(repoPath, dir);

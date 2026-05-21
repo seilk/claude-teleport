@@ -100,6 +100,16 @@ describe("pushToMachineBranch", () => {
     assert.deepEqual(mainSnap!.skills.map((e) => e.relativePath).sort(), ["skills/keep/SKILL.md"]);
   });
 
+  it("round-trips mcp configs through the hub (reads from mcp/, not mcp-configs)", () => {
+    pushToMachineBranch(workPath, "macbook-pro", makeSnapshot({
+      mcp: [{ relativePath: "mcp/mcp-servers.json", contentHash: "m", content: '{"mcpServers":{}}' }],
+    }));
+    const snap = readFromBranch(workPath, "macbook-pro");
+    assert.ok(snap);
+    assert.deepEqual(snap!.mcp.map((e) => e.relativePath), ["mcp/mcp-servers.json"]);
+    assert.equal(snap!.mcp[0].content, '{"mcpServers":{}}');
+  });
+
   it("writes snapshot.yaml with metadata under machines/", () => {
     pushToMachineBranch(workPath, "macbook-pro", makeSnapshot());
     execSync("git checkout macbook-pro", { cwd: workPath, encoding: "utf-8" });
