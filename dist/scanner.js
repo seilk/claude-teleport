@@ -1,9 +1,11 @@
 import { readFileSync, existsSync, statSync } from "node:fs";
 import { join } from "node:path";
+import { homedir } from "node:os";
 import { TELEPORT_VERSION, CATEGORY_PATHS, GLOBAL_DOC_FILES, CREDENTIAL_KEYS, STATUSLINE_SCRIPT_FILE, } from "./constants.js";
 import { getMachineId } from "./machine.js";
 import { hashContent, scanDirectoryToFileEntries } from "./utils.js";
-function scanSettings(baseDir) {
+import { substituteForExport } from "./paths.js";
+function scanSettings(baseDir, homeDir, claudeDir) {
     const settingsPath = join(baseDir, "settings.json");
     if (!existsSync(settingsPath))
         return {};
@@ -16,7 +18,9 @@ function scanSettings(baseDir) {
                 filtered[key] = value;
             }
         }
-        return filtered;
+        // Normalize absolute paths in string values (e.g. statusLine.command,
+        // hooks[].command) to portable placeholders before storing.
+        return JSON.parse(substituteForExport(JSON.stringify(filtered), homeDir, claudeDir));
     }
     catch {
         return {};
@@ -151,12 +155,12 @@ function scanMarketplaces(baseDir) {
     }
     return Array.from(results.values());
 }
-function scanGlobalDocs(baseDir) {
+function scanGlobalDocs(baseDir, homeDir, claudeDir) {
     const entries = [];
     for (const fileName of GLOBAL_DOC_FILES) {
         const filePath = join(baseDir, fileName);
         if (existsSync(filePath) && statSync(filePath).isFile()) {
-            const content = readFileSync(filePath, "utf-8");
+            const content = substituteForExport(readFileSync(filePath, "utf-8"), homeDir, claudeDir);
             entries.push({
                 relativePath: fileName,
                 contentHash: hashContent(content),
@@ -166,7 +170,7 @@ function scanGlobalDocs(baseDir) {
     }
     return entries;
 }
-function scanHooks(baseDir) {
+function scanHooks(baseDir, homeDir, claudeDir) {
     // Canonical location is ~/.claude/hooks/hooks.json. Fall back to
     // ~/.claude/hooks.json (legacy) and ~/.claude/.cursor/hooks.json (Cursor).
     const candidatePaths = [
@@ -181,35 +185,40 @@ function scanHooks(baseDir) {
         const data = JSON.parse(readFileSync(hooksJsonPath, "utf-8"));
         if (!Array.isArray(data))
             return [];
-        return data.map((h) => ({
-            name: String(h.name ?? ""),
-            event: String(h.event ?? ""),
-            command: String(h.command ?? ""),
-            config: h.config ?? undefined,
-        }));
+        return data.map((h) => {
+            const config = h.config
+                ? JSON.parse(substituteForExport(JSON.stringify(h.config), homeDir, claudeDir))
+                : undefined;
+            return {
+                name: String(h.name ?? ""),
+                event: String(h.event ?? ""),
+                command: substituteForExport(String(h.command ?? ""), homeDir, claudeDir),
+                config,
+            };
+        });
     }
     catch {
         return [];
     }
 }
-function scanKeybindings(baseDir) {
+function scanKeybindings(baseDir, homeDir, claudeDir) {
     const filePath = join(baseDir, "keybindings.json");
     if (!existsSync(filePath))
         return undefined;
     try {
-        const content = readFileSync(filePath, "utf-8");
+        const content = substituteForExport(readFileSync(filePath, "utf-8"), homeDir, claudeDir);
         return { relativePath: "keybindings.json", contentHash: hashContent(content), content };
     }
     catch {
         return undefined;
     }
 }
-function scanStatuslineScript(baseDir) {
+function scanStatuslineScript(baseDir, homeDir, claudeDir) {
     const filePath = join(baseDir, STATUSLINE_SCRIPT_FILE);
     if (!existsSync(filePath) || !statSync(filePath).isFile())
         return undefined;
     try {
-        const content = readFileSync(filePath, "utf-8");
+        const content = substituteForExport(readFileSync(filePath, "utf-8"), homeDir, claudeDir);
         return {
             relativePath: STATUSLINE_SCRIPT_FILE,
             contentHash: hashContent(content),
@@ -222,23 +231,24 @@ function scanStatuslineScript(baseDir) {
 }
 export async function scanClaudeDir(claudeDir) {
     const machine = getMachineId();
+    const homeDir = homedir();
     return {
         teleportVersion: TELEPORT_VERSION,
         machineId: machine.id,
         machineAlias: machine.alias,
         plugins: scanPlugins(claudeDir),
         marketplaces: scanMarketplaces(claudeDir),
-        agents: scanDirectoryToFileEntries(claudeDir, CATEGORY_PATHS.agents, "agents"),
-        rules: scanDirectoryToFileEntries(claudeDir, CATEGORY_PATHS.rules, "rules"),
-        skills: scanDirectoryToFileEntries(claudeDir, CATEGORY_PATHS.skills, "skills"),
-        commands: scanDirectoryToFileEntries(claudeDir, CATEGORY_PATHS.commands, "commands"),
-        settings: scanSettings(claudeDir),
-        globalDocs: scanGlobalDocs(claudeDir),
-        hooks: scanHooks(claudeDir),
-        mcp: scanDirectoryToFileEntries(claudeDir, CATEGORY_PATHS.mcp, "mcp"),
-        scripts: scanDirectoryToFileEntries(claudeDir, CATEGORY_PATHS.scripts, "scripts"),
-        keybindings: scanKeybindings(claudeDir),
-        statuslineScript: scanStatuslineScript(claudeDir),
+        agents: scanDirectoryToFileEntries(claudeDir, CATEGORY_PATHS.agents, "agents", homeDir, claudeDir),
+        rules: scanDirectoryToFileEntries(claudeDir, CATEGORY_PATHS.rules, "rules", homeDir, claudeDir),
+        skills: scanDirectoryToFileEntries(claudeDir, CATEGORY_PATHS.skills, "skills", homeDir, claudeDir),
+        commands: scanDirectoryToFileEntries(claudeDir, CATEGORY_PATHS.commands, "commands", homeDir, claudeDir),
+        settings: scanSettings(claudeDir, homeDir, claudeDir),
+        globalDocs: scanGlobalDocs(claudeDir, homeDir, claudeDir),
+        hooks: scanHooks(claudeDir, homeDir, claudeDir),
+        mcp: scanDirectoryToFileEntries(claudeDir, CATEGORY_PATHS.mcp, "mcp", homeDir, claudeDir),
+        scripts: scanDirectoryToFileEntries(claudeDir, CATEGORY_PATHS.scripts, "scripts", homeDir, claudeDir),
+        keybindings: scanKeybindings(claudeDir, homeDir, claudeDir),
+        statuslineScript: scanStatuslineScript(claudeDir, homeDir, claudeDir),
     };
 }
 //# sourceMappingURL=scanner.js.map
