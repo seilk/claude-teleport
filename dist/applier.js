@@ -2,6 +2,7 @@ import { writeFileSync, readFileSync, existsSync, mkdirSync, chmodSync } from "n
 import { join, dirname } from "node:path";
 import { homedir } from "node:os";
 import { substituteForImport } from "./paths.js";
+import { safeWriteTarget, isForbiddenSettingsKey } from "./safe-path.js";
 function ensureDir(filePath) {
     const dir = dirname(filePath);
     if (!existsSync(dir)) {
@@ -16,9 +17,15 @@ function applyFileEntry(entry, claudeDir, homeDir) {
     if (!entry.sourceContent) {
         return { path: entry.relativePath, status: "error", error: "No source content" };
     }
-    // Expand portable $HOME/$CLAUDE_DIR placeholders to this machine's real paths.
+    // Reject anything that would write outside the config dir or through a
+    // symlink — relativePath may come from another user's repo via teleport-from.
+    const target = safeWriteTarget(claudeDir, entry.relativePath);
+    if (!target.ok) {
+        return { path: entry.relativePath, status: "error", error: target.reason };
+    }
+    const targetPath = target.path;
+    // Expand portable placeholders to this machine's real paths.
     const content = substituteForImport(entry.sourceContent, homeDir, claudeDir);
-    const targetPath = join(claudeDir, entry.relativePath);
     ensureDir(targetPath);
     writeFileSync(targetPath, content);
     // Restore the executable bit for scripts so synced hooks run on the target machine.
@@ -33,11 +40,15 @@ function applyFileEntry(entry, claudeDir, homeDir) {
     return { path: entry.relativePath, status: "ok" };
 }
 function applySettingsEntry(entry, claudeDir, homeDir) {
+    const key = entry.relativePath.replace(/^settings\//, "");
+    // Block prototype-polluting keys from an untrusted snapshot.
+    if (isForbiddenSettingsKey(key)) {
+        return { path: entry.relativePath, status: "error", error: `refusing dangerous settings key "${key}"` };
+    }
     const settingsPath = join(claudeDir, "settings.json");
     const existing = existsSync(settingsPath)
         ? JSON.parse(readFileSync(settingsPath, "utf-8"))
         : {};
-    const key = entry.relativePath.replace("settings/", "");
     if (entry.type === "removed") {
         delete existing[key];
     }
