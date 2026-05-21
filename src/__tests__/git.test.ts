@@ -92,6 +92,12 @@ describe("pushToMachineBranch", () => {
     const snap = readFromBranch(workPath, "macbook-pro");
     assert.ok(snap);
     assert.deepEqual(snap!.skills.map((e) => e.relativePath).sort(), ["skills/keep/SKILL.md"]);
+
+    // The deletion must also reach main (the union branch), not just the branch.
+    execSync("git checkout main", { cwd: workPath, encoding: "utf-8" });
+    const mainSnap = readMachineFromMain(workPath, "macbook-pro");
+    assert.ok(mainSnap);
+    assert.deepEqual(mainSnap!.skills.map((e) => e.relativePath).sort(), ["skills/keep/SKILL.md"]);
   });
 
   it("writes snapshot.yaml with metadata under machines/", () => {
