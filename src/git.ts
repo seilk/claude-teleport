@@ -366,6 +366,10 @@ export function pushToMachineBranch(
       execFile("git", ["checkout", "-b", machineAlias], repoPath);
     }
 
+    // Rebuild machines/{alias}/ from scratch so entries removed locally are
+    // dropped from the branch. writeConfigFiles only writes; without clearing,
+    // stale files linger forever and `git add -A` never records the deletion.
+    rmSync(join(repoPath, machinePrefix), { recursive: true, force: true });
     // Write configs under machines/{alias}/
     writeSnapshotYaml(snapshot, repoPath, machinePrefix);
     writeConfigFiles(snapshot, repoPath, machinePrefix);
@@ -810,6 +814,9 @@ export function pushToPublicRepo(
   }
 
   try {
+    // Rebuild machines/{alias}/ from scratch so entries removed locally are
+    // dropped (writeConfigFiles only writes; see pushToMachineBranch).
+    rmSync(join(repoPath, machinePrefix), { recursive: true, force: true });
     // Write configs under machines/{alias}/
     writeSnapshotYaml(snapshot, repoPath, machinePrefix);
     writeConfigFiles(snapshot, repoPath, machinePrefix);
