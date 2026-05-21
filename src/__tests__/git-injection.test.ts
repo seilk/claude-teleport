@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { existsSync, rmSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
-import { readFromBranch, pushToPublicRepo } from "../git.js";
+import { readFromBranch, pushToPublicRepo, hubExists, publicRepoExists } from "../git.js";
 import type { Snapshot } from "../types.js";
 
 function minimalSnapshot(): Snapshot {
@@ -45,5 +45,16 @@ describe("git command-injection hardening", () => {
   it("pushToPublicRepo rejects a traversing / injecting alias", () => {
     assert.equal(pushToPublicRepo(tmpdir(), "../../evil", minimalSnapshot(), "").status, "error");
     assert.equal(pushToPublicRepo(tmpdir(), 'x"; touch pwned; #', minimalSnapshot(), "").status, "error");
+  });
+
+  // A --username flag is interpolated into `gh repo <view|create|clone> <user>/<repo>`.
+  // A value starting with "-" (or containing "/", spaces, ";") would be parsed as a
+  // gh flag or alter the repo path — argument injection even without a shell.
+  it("rejects usernames that could smuggle a gh flag or path", () => {
+    const malicious = ["-X", "--flag", "a/b", "a;b", "$(reboot)", "../evil", "", "a b"];
+    for (const u of malicious) {
+      assert.throws(() => hubExists(u), /Invalid GitHub username/, `hubExists should reject ${JSON.stringify(u)}`);
+      assert.throws(() => publicRepoExists(u), /Invalid GitHub username/, `publicRepoExists should reject ${JSON.stringify(u)}`);
+    }
   });
 });

@@ -10,6 +10,17 @@ function sanitizeBranchName(name) {
     }
     return name;
 }
+// GitHub usernames are alphanumeric with single hyphens, never leading with one,
+// max 39 chars. Reject anything else so an attacker-supplied --username like "-X"
+// can't be interpolated into `gh repo <view|create|clone> -X/<repo>` and parsed
+// as a flag (argument injection). `gh api user` returns valid logins, so this
+// never rejects the authenticated user.
+function assertValidUsername(username) {
+    if (!/^[A-Za-z0-9](?:[A-Za-z0-9-]{0,38})$/.test(username)) {
+        throw new Error(`Invalid GitHub username: ${JSON.stringify(username)}`);
+    }
+    return username;
+}
 const LOCAL_TIMEOUT = Number(process.env["TELEPORT_GIT_TIMEOUT"]) || 30_000;
 const REMOTE_TIMEOUT = Number(process.env["TELEPORT_GIT_REMOTE_TIMEOUT"]) || 120_000;
 function exec(cmd, cwd) {
@@ -49,6 +60,7 @@ export function getGhUsername() {
     return exec("gh api user -q .login");
 }
 export function hubExists(username) {
+    assertValidUsername(username);
     try {
         execFile("gh", ["repo", "view", `${username}/${PRIVATE_REPO_NAME}`, "--json", "url", "-q", ".url"]);
         const repoUrl = `https://github.com/${username}/${PRIVATE_REPO_NAME}`;
@@ -59,6 +71,7 @@ export function hubExists(username) {
     }
 }
 export function createHubRepo(username, cloneTo) {
+    assertValidUsername(username);
     const check = hubExists(username);
     if (check.exists) {
         // Clone to a local path so the caller can use the hub immediately
@@ -78,6 +91,7 @@ export function createHubRepo(username, cloneTo) {
     return { created: true, repoUrl, localPath: cloneDir };
 }
 export function cloneOrPullHub(username, localPath) {
+    assertValidUsername(username);
     if (existsSync(join(localPath, ".git"))) {
         exec("git pull --rebase", localPath);
     }
@@ -650,6 +664,7 @@ export function migrateRootToNamespaced(repoPath) {
     return true;
 }
 export function createPublicRepo(username) {
+    assertValidUsername(username);
     try {
         execFile("gh", ["repo", "view", `${username}/${PUBLIC_REPO_NAME}`, "--json", "url"]);
         return `https://github.com/${username}/${PUBLIC_REPO_NAME}`;
@@ -661,6 +676,7 @@ export function createPublicRepo(username) {
 }
 // --- Public repo operations ---
 export function publicRepoExists(username) {
+    assertValidUsername(username);
     try {
         execFile("gh", ["repo", "view", `${username}/${PUBLIC_REPO_NAME}`, "--json", "url", "-q", ".url"]);
         const repoUrl = `https://github.com/${username}/${PUBLIC_REPO_NAME}`;
@@ -671,6 +687,7 @@ export function publicRepoExists(username) {
     }
 }
 export function cloneOrPullPublic(username, localPath) {
+    assertValidUsername(username);
     if (existsSync(join(localPath, ".git"))) {
         exec("git pull --rebase", localPath);
     }
