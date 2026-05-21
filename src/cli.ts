@@ -7,7 +7,7 @@ import { scanClaudeDir } from "./scanner.js";
 import { diff } from "./differ.js";
 import { applyDiff } from "./applier.js";
 import { createBackup, listBackups, cleanOldBackups } from "./backup.js";
-import { scanForSecrets, scanForRcePatterns } from "./secrets.js";
+import { scanForRcePatterns, scanSnapshotForSecrets } from "./secrets.js";
 import { getMachineId, getMachineAlias } from "./machine.js";
 import { checkGhAuth, cloneOrPullHub, createHubRepo, hubExists, listMachineBranches, pushToMachineBranch, readFromBranch, readMachineFromMain, writeHubReadme, migrateRootToNamespaced, publicRepoExists, cloneOrPullPublic, readMachineFromPublic, pushToPublicRepo } from "./git.js";
 import { CLAUDE_DIR, VALID_CATEGORIES } from "./constants.js";
@@ -199,7 +199,13 @@ async function main(): Promise<void> {
       const selected = allEntries.filter((e) => selections.includes(e.relativePath));
       const claudeDir = flags["claude-dir"] ?? CLAUDE_DIR;
       const result = await applyDiff(selected, claudeDir);
-      output(result);
+      // Surface RCE patterns in applied content (e.g. when importing another
+      // user's repo via teleport-from) so the agent can flag them for review.
+      const rceWarnings = selected
+        .filter((e) => e.sourceContent)
+        .map((e) => ({ path: e.relativePath, findings: scanForRcePatterns(e.sourceContent ?? "") }))
+        .filter((r) => r.findings.length > 0);
+      output(rceWarnings.length > 0 ? { ...result, rceWarnings } : result);
       break;
     }
 
@@ -261,18 +267,7 @@ async function main(): Promise<void> {
         break;
       }
       const snapshot = readJsonFile<Snapshot>(snapshotFilePath);
-      const allFiles: FileEntry[] = [
-        ...(snapshot.agents ?? []),
-        ...(snapshot.rules ?? []),
-        ...(snapshot.skills ?? []),
-        ...(snapshot.commands ?? []),
-        ...(snapshot.globalDocs ?? []),
-        ...(snapshot.mcp ?? []),
-        ...(snapshot.scripts ?? []),
-      ];
-      if (snapshot.statuslineScript) allFiles.push(snapshot.statuslineScript);
-      if (snapshot.keybindings) allFiles.push(snapshot.keybindings);
-      const findings = scanForSecrets(allFiles);
+      const findings = scanSnapshotForSecrets(snapshot);
       const envelope = { status: "ok" as const, findings, count: findings.length };
       const outputPath = flags["output"];
       if (outputPath) {
@@ -373,6 +368,18 @@ async function main(): Promise<void> {
       }
       const verbose = flags["verbose"] !== undefined;
       const snapshot = readJsonFile<Snapshot>(snapshotFile);
+      // Enforced backstop: never write a snapshot containing a critical secret to
+      // the hub, regardless of whether the agent ran secret-scan first.
+      const pushSecrets = scanSnapshotForSecrets(snapshot).filter((f) => f.severity === "critical");
+      if (pushSecrets.length > 0) {
+        output({
+          status: "error",
+          error: "Refusing to push: critical secret(s) detected. Remove them or move to settings.local.json / .credentials.json.",
+          findings: pushSecrets,
+        });
+        process.exitCode = 1;
+        break;
+      }
       // Migrate legacy layout if needed
       migrateRootToNamespaced(hubPath);
       if (verbose) stderr(`Pushing to hub for machine "${machine}"...`);
@@ -493,6 +500,18 @@ async function main(): Promise<void> {
         break;
       }
       const snapshot = readJsonFile<Snapshot>(snapshotFile);
+      // A public repo is the highest-stakes leak surface — block any critical
+      // secret before it is published.
+      const publicSecrets = scanSnapshotForSecrets(snapshot).filter((f) => f.severity === "critical");
+      if (publicSecrets.length > 0) {
+        output({
+          status: "error",
+          error: "Refusing to publish: critical secret(s) detected in snapshot.",
+          findings: publicSecrets,
+        });
+        process.exitCode = 1;
+        break;
+      }
       const pushResult = pushToPublicRepo(hubPath, machine, snapshot, username);
       if (pushResult.status === "error") {
         output({ status: "error", error: pushResult.error });

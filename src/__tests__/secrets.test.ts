@@ -86,10 +86,30 @@ describe("isCredentialKey", () => {
     assert.ok(isCredentialKey("password"));
   });
 
+  it("matches credential terms inside compound keys", () => {
+    assert.ok(isCredentialKey("ANTHROPIC_API_KEY"));
+    assert.ok(isCredentialKey("OPENAI_API_KEY"));
+    assert.ok(isCredentialKey("accessToken"));
+    assert.ok(isCredentialKey("refreshToken"));
+    assert.ok(isCredentialKey("clientSecret"));
+    assert.ok(isCredentialKey("awsSecretAccessKey"));
+    assert.ok(isCredentialKey("githubToken"));
+    assert.ok(isCredentialKey("oauthToken"));
+  });
+
   it("rejects non-credential keys", () => {
     assert.ok(!isCredentialKey("enabledPlugins"));
     assert.ok(!isCredentialKey("hooks"));
     assert.ok(!isCredentialKey("theme"));
+  });
+
+  it("does not treat benign keys as credentials (word-boundary, not substring)", () => {
+    // Substring matching used to drop these as "auth"/"token"/"secret" — data loss.
+    assert.ok(!isCredentialKey("author"));
+    assert.ok(!isCredentialKey("authority"));
+    assert.ok(!isCredentialKey("tokenizer"));
+    assert.ok(!isCredentialKey("monkey"));
+    assert.ok(!isCredentialKey("keyboard"));
   });
 });
 

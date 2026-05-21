@@ -5,13 +5,13 @@ import {
   TELEPORT_VERSION,
   CATEGORY_PATHS,
   GLOBAL_DOC_FILES,
-  CREDENTIAL_KEYS,
   STATUSLINE_SCRIPT_FILE,
 } from "./constants.js";
 import { getMachineId } from "./machine.js";
 import type { Snapshot, FileEntry, PluginEntry, Marketplace, HookEntry } from "./types.js";
 import { hashContent, scanDirectoryToFileEntries } from "./utils.js";
 import { substituteForExport } from "./paths.js";
+import { redactCredentialsDeep } from "./secrets.js";
 
 function scanSettings(
   baseDir: string,
@@ -23,17 +23,9 @@ function scanSettings(
 
   try {
     const raw = JSON.parse(readFileSync(settingsPath, "utf-8"));
-    const filtered: Record<string, unknown> = {};
-    for (const [key, value] of Object.entries(raw)) {
-      const isCredential = CREDENTIAL_KEYS.some((ck) =>
-        key.toLowerCase().includes(ck.toLowerCase()),
-      );
-      if (!isCredential) {
-        filtered[key] = value;
-      }
-    }
-    // Normalize absolute paths in string values (e.g. statusLine.command,
-    // hooks[].command) to portable placeholders before storing.
+    // Drop credential-keyed values at any depth, then normalize absolute paths
+    // in string values (e.g. statusLine.command) to portable placeholders.
+    const filtered = redactCredentialsDeep(raw) as Record<string, unknown>;
     return JSON.parse(
       substituteForExport(JSON.stringify(filtered), homeDir, claudeDir),
     ) as Record<string, unknown>;

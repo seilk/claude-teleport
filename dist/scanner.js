@@ -1,25 +1,20 @@
 import { readFileSync, existsSync, statSync } from "node:fs";
 import { join } from "node:path";
 import { homedir } from "node:os";
-import { TELEPORT_VERSION, CATEGORY_PATHS, GLOBAL_DOC_FILES, CREDENTIAL_KEYS, STATUSLINE_SCRIPT_FILE, } from "./constants.js";
+import { TELEPORT_VERSION, CATEGORY_PATHS, GLOBAL_DOC_FILES, STATUSLINE_SCRIPT_FILE, } from "./constants.js";
 import { getMachineId } from "./machine.js";
 import { hashContent, scanDirectoryToFileEntries } from "./utils.js";
 import { substituteForExport } from "./paths.js";
+import { redactCredentialsDeep } from "./secrets.js";
 function scanSettings(baseDir, homeDir, claudeDir) {
     const settingsPath = join(baseDir, "settings.json");
     if (!existsSync(settingsPath))
         return {};
     try {
         const raw = JSON.parse(readFileSync(settingsPath, "utf-8"));
-        const filtered = {};
-        for (const [key, value] of Object.entries(raw)) {
-            const isCredential = CREDENTIAL_KEYS.some((ck) => key.toLowerCase().includes(ck.toLowerCase()));
-            if (!isCredential) {
-                filtered[key] = value;
-            }
-        }
-        // Normalize absolute paths in string values (e.g. statusLine.command,
-        // hooks[].command) to portable placeholders before storing.
+        // Drop credential-keyed values at any depth, then normalize absolute paths
+        // in string values (e.g. statusLine.command) to portable placeholders.
+        const filtered = redactCredentialsDeep(raw);
         return JSON.parse(substituteForExport(JSON.stringify(filtered), homeDir, claudeDir));
     }
     catch {
