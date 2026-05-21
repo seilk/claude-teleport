@@ -286,7 +286,7 @@ function generateHubReadme(username: string, isPublic: boolean): string {
     "  - `rules/` — Coding standards and language-specific rules",
     "  - `skills/` — SKILL.md files and supporting resources",
     "  - `commands/` — Custom command definitions",
-    "  - `mcp-configs/` — MCP server configurations",
+    "  - `mcp/` — MCP server configurations",
     "  - `scripts/` — Hook scripts and helper executables referenced by `settings.json`",
     "  - `statusline-command.sh` — Optional statusline shell script",
     "  - `plugins/` — Plugin and marketplace metadata",
